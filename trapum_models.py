@@ -144,6 +144,7 @@ class DataProduct(Base):
     filename = Column(String(50), nullable=False, comment='file basename')
     filepath = Column(String(255))
     filehash = Column(String(100))
+    metainfo = Column(Text)
     file_type_id = Column(ForeignKey('File_Types.file_type_id'), nullable=False, index=True, comment='file type identifier')
     upload_date = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"), comment='Upload date of dataproduct info in db')
     modification_date = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))

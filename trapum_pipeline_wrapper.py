@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
-from trapum_models import Processing, Hardware
+from trapum_models import Processing, Hardware, FileType, DataProduct
 
 log = logging.getLogger('trapum_pipeline_wrapper')
 
@@ -49,15 +49,10 @@ class TrapumPipelineWrapper(object):
         # here we parse the argument model
         """
         {
-            "metadata":
-            {
-                "proessing_id":2,
+            "processing_id": 1,
+            "data": { "pointings": [{}]
             }
-            "arguments":
-            {
-                "dm_low": 1.3,
-                "dm_high": 100.03
-            }
+            "processing_args": {}
         }
         """
         # If this fails there should be no update to
@@ -73,15 +68,35 @@ class TrapumPipelineWrapper(object):
             self._processing.process_status = "running"
             session.add(self._processing)
         try:
-            self._pipeline_callable(data)
+            data_products = self._pipeline_callable(data)
+            self.on_success(data_products)
         except Exception as error:
             log.exception("Error from pipeline: {}".format(str(error)))
             self.on_fail()
             raise error
 
-    def on_success(self):
+    def on_success(self, data_products):
         with self.session() as session:
-            self._processing.end_time = datetime.datetime.utcnow()
+            now = datetime.datetime.utcnow()
+            self._processing.end_time = now
+            for dp in data_products:
+                ft = session(FileType).query.filter(
+                    FileType.name.like_(dp['type'])).first()
+                if ft is None:
+                    ft = FileType(name=dp['type'], description="unknown")
+                    session.add(ft)
+                    session.flush()
+                data_product = DataProduct(
+                    filename=dp['filename'],
+                    filepath=dp['directory'],
+                    upload_date=now,
+                    modification_date=now,
+                    file_type_id=ft.id,
+                    beam_id=self._data["metadata"]["beam_ids"][0],
+                    pointing_id=self._data["metadata"]["pointing_ids"],
+                    processing_id=self._processing.id
+                    )
+                session.add(data_product)
             self._processing.process_status = "success"
             session.add(self._processing)
 
@@ -94,3 +109,11 @@ class TrapumPipelineWrapper(object):
     def add_options(self, parser):
         parser.add_option('','--db', dest="database", type=str,
             help='SQLAlchemy database descriptor')
+
+
+def null_pipeline(data):
+    pass
+
+process_manager = PikaProcess(...)
+pipeline_wrapper = TrapumPipelineWrapper(..., null_pipeline)
+process_manager.process(pipeline_wrapper.on_receive)

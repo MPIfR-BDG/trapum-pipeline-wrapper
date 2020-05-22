@@ -1,4 +1,5 @@
-
+import os
+import xxhash
 import json
 import datetime
 import logging
@@ -14,10 +15,10 @@ log = logging.getLogger('trapum_pipeline_wrapper')
 class TrapumPipelineWrapper(object):
     def __init__(self, database, pipeline_callable):
         self._pipeline_callable = pipeline_callable
-        self._processing = None
-        self._session_engine = create_engine(database, echo=False)
+        self._processing_id = None
+        self._session_engine = create_engine(database, echo=False, poolclass=NullPool)
         self._session_factory = sessionmaker(
-            bind=self._session_engine, poolclass=NullPool)
+            bind=self._session_engine)
         self._hardware_id = self.get_hardware_id()
 
     @contextmanager
@@ -34,16 +35,24 @@ class TrapumPipelineWrapper(object):
 
     def get_hardware_id(self):
         with self.session() as session:
-            hardware = session(Hardware).query.filter(
-                Hardware.name == "dave",
-                )
+            hardware = session.query(Hardware).filter(
+                Hardware.name.ilike("dave"),
+                ).first()
             if hardware:
                 self._hardware_id = hardware.id
             else:
-                hardware = Hardware(...)
+                hardware = Hardware(name="dave")
                 session.add(hardware)
                 session.flush()
                 self._hardware_id = hardware.id
+
+    def _generate_filehash(self, filepath):
+        xx = xxhash.xxh64()
+        with open(filepath, 'rb') as f:
+            xx.update(f.read(10000))
+            xx.update('{}'.format(os.path.getsize(filepath)))
+        return xx.hexdigest()
+
 
     def on_receive(self, message):
         # here we parse the argument model
@@ -58,15 +67,16 @@ class TrapumPipelineWrapper(object):
         # If this fails there should be no update to
         # the database it should just result in the pika
         # wrapper passing the message to the fail queue
-        data = json.loads(message)
+        data = json.loads(message.decode())
         with self.session() as session:
-            self._processing = session(Processing).query.get(data["processing_id"])
-            if self._processing is None:
+            processing = session.query(Processing).get(data["processing_id"])
+            if processing is None:
                 raise Exception("No Processing entry with ID = {}".format(
                     data["processing_id"]))
-            self._processing.start_time = datetime.datetime.utcnow()
-            self._processing.process_status = "running"
-            session.add(self._processing)
+            self._processing_id = processing.id 
+            processing.start_time = datetime.datetime.utcnow()
+            processing.process_status = "running"
+            session.add(processing)
         try:
             data_products = self._pipeline_callable(data)
             self.on_success(data_products)
@@ -76,35 +86,47 @@ class TrapumPipelineWrapper(object):
             raise error
 
     def on_success(self, data_products):
+        '''
+         required from pipeline: Filetype, filename, beam id , pointing id, directory
+
+        '''
+          
         with self.session() as session:
+            processing = session.query(Processing).get(self._processing_id)
             now = datetime.datetime.utcnow()
-            self._processing.end_time = now
+            processing.end_time = now
+   
             for dp in data_products:
-                ft = session(FileType).query.filter(
-                    FileType.name.like_(dp['type'])).first()
+                ft = session.query(FileType).filter(
+                    FileType.name.ilike(dp['type'])).first()
                 if ft is None:
                     ft = FileType(name=dp['type'], description="unknown")
                     session.add(ft)
                     session.flush()
+                filehash = self._generate_filehash(os.path.join(dp['directory'],dp['filename']))
                 data_product = DataProduct(
                     filename=dp['filename'],
                     filepath=dp['directory'],
                     upload_date=now,
                     modification_date=now,
                     file_type_id=ft.id,
-                    beam_id=self._data["metadata"]["beam_ids"][0],
-                    pointing_id=self._data["metadata"]["pointing_ids"],
-                    processing_id=self._processing.id
+                    beam_id=dp["beam_id"],
+                    pointing_id=dp["pointing_id"],
+                    processing_id=processing.id,
+                    filehash=filehash, 
+                    available=True,
+                    locked=True
                     )
                 session.add(data_product)
-            self._processing.process_status = "success"
-            session.add(self._processing)
+            processing.process_status = "success"
+            session.add(processing)
 
     def on_fail(self):
         with self.session() as session:
-            self._processing.end_time = datetime.datetime.utcnow()
-            self._processing.process_status = "failed"
-            session.add(self._processing)
+            processing = session.query(Processing).get(self._processing_id)
+            processing.end_time = datetime.datetime.utcnow()
+            processing.process_status = "failed"
+            session.add(processing)
 
     def add_options(self, parser):
         parser.add_option('','--db', dest="database", type=str,
@@ -114,6 +136,6 @@ class TrapumPipelineWrapper(object):
 def null_pipeline(data):
     pass
 
-process_manager = PikaProcess(...)
-pipeline_wrapper = TrapumPipelineWrapper(..., null_pipeline)
-process_manager.process(pipeline_wrapper.on_receive)
+#process_manager = PikaProcess(...)
+#pipeline_wrapper = TrapumPipelineWrapper(..., null_pipeline)
+#process_manager.process(pipeline_wrapper.on_receive)

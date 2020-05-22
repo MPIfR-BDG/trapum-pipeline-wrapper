@@ -1,6 +1,6 @@
 # coding: utf-8
-from sqlalchemy import CHAR, Column, Float, ForeignKey, String, TIMESTAMP, Text, text
-from sqlalchemy.dialects.mysql import INTEGER, TIMESTAMP, TINYINT
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, String, Table, Text
+from sqlalchemy.dialects.mysql import INTEGER, TINYINT
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -8,160 +8,288 @@ Base = declarative_base()
 metadata = Base.metadata
 
 
-class BeamformerConfiguration(Base):
-    __tablename__ = 'Beamformer_Configuration'
+class Affiliation(Base):
+    __tablename__ = 'affiliation'
 
-    bf_config_id = Column(INTEGER(11), primary_key=True, comment='beamformer configuration id')
+    id = Column(INTEGER(11), primary_key=True)
+    name = Column(String(64), unique=True)
+    fullname = Column(String(128), unique=True)
+    address = Column(String(256))
+
+    users = relationship('User', secondary='affiliations')
+
+
+class BeamformerConfiguration(Base):
+    __tablename__ = 'beamformer_configuration'
+
+    id = Column(INTEGER(11), primary_key=True)
     centre_frequency = Column(Float)
     bandwidth = Column(Float)
-    incoherent_nchans = Column(INTEGER(10))
-    coherent_nchans = Column(INTEGER(10))
+    incoherent_nchans = Column(INTEGER(11))
     incoherent_tsamp = Column(Float)
+    incoherent_antennas = Column(Text)
+    coherent_nchans = Column(INTEGER(11))
     coherent_tsamp = Column(Float)
-    receiver = Column(Text, comment='Receiver used')
-    metadata_ = Column('metadata', Text, comment='info about coherent and incoherent config')
+    coherent_antennas = Column(Text)
+    configuration_authority = Column(String(64))
+    receiver = Column(String(20))
+    metainfo = Column(Text)
 
 
-class FileState(Base):
-    __tablename__ = 'File_States'
+class FileAction(Base):
+    __tablename__ = 'file_action'
 
-    state_id = Column(INTEGER(11), primary_key=True, comment='unique file state identifier')
-    state = Column(Text, nullable=False, comment='description of file state')
-    action = Column(Text)
-    locked = Column(TINYINT(1), nullable=False, server_default=text("'0'"))
-    note = Column(Text)
+    id = Column(INTEGER(11), primary_key=True)
+    action = Column(String(64), nullable=False)
+    is_destructive = Column(TINYINT(1), nullable=False)
 
 
 class FileType(Base):
-    __tablename__ = 'File_Types'
+    __tablename__ = 'file_type'
 
-    file_type_id = Column(INTEGER(11), primary_key=True)
-    name = Column(Text, nullable=False)
+    id = Column(INTEGER(11), primary_key=True)
+    name = Column(String(64), nullable=False, unique=True)
     description = Column(Text)
 
 
 class Hardware(Base):
-    __tablename__ = 'Hardwares'
+    __tablename__ = 'hardware'
 
-    hardware_id = Column(INTEGER(11), primary_key=True, comment='Hardware ID')
+    id = Column(INTEGER(11), primary_key=True)
     name = Column(Text)
-    metadata_ = Column('metadata', Text)
-    notes = Column(Text, nullable=False)
+    metainfo = Column(Text)
+    notes = Column(Text)
+
+
+class MembershipRole(Base):
+    __tablename__ = 'membership_role'
+
+    id = Column(INTEGER(11), primary_key=True)
+    name = Column(String(64), unique=True)
+
+    users = relationship('User', secondary='membership_roles')
 
 
 class Pipeline(Base):
-    __tablename__ = 'Pipelines'
+    __tablename__ = 'pipeline'
 
-    pipeline_id = Column(INTEGER(11), primary_key=True, comment='Pipeline ID')
-    hash = Column(Text, comment='unique hash of pipeline')
-    name = Column(Text, nullable=False, comment='Name of pipeline')
-    notes = Column(Text, comment='Notes about pipeline')
+    id = Column(INTEGER(11), primary_key=True)
+    hash = Column(String(100), unique=True)
+    name = Column(String(64), nullable=False, unique=True)
+    arguments_json = Column(Text)
+    notes = Column(Text)
 
 
-class Project_(Base):
-    __tablename__ = 'Projects'
+class ProcessingArgument(Base):
+    __tablename__ = 'processing_arguments'
 
-    project_id = Column(INTEGER(11), primary_key=True, comment='Project ID')
-    Name = Column(Text)
-    notes = Column(Text, nullable=False, comment='useful points to be noted')
+    id = Column(INTEGER(11), primary_key=True)
+    arguments_json = Column(Text)
+
+
+class User(Base):
+    __tablename__ = 'user'
+
+    id = Column(INTEGER(11), primary_key=True)
+    username = Column(String(64), unique=True)
+    fullname = Column(String(64))
+    email = Column(String(120), unique=True)
+    password_hash = Column(String(128))
+    administrator = Column(TINYINT(1))
+    token = Column(String(32), unique=True)
+    token_expiration = Column(DateTime)
+
+    working_groups = relationship('WorkingGroup', secondary='memberships')
+
+
+t_affiliations = Table(
+    'affiliations', metadata,
+    Column('user_id', ForeignKey('user.id'), primary_key=True, nullable=False),
+    Column('affiliation_id', ForeignKey('affiliation.id'), primary_key=True, nullable=False, index=True)
+)
+
+
+t_membership_roles = Table(
+    'membership_roles', metadata,
+    Column('user_id', ForeignKey('user.id'), primary_key=True, nullable=False),
+    Column('membership_role_id', ForeignKey('membership_role.id'), primary_key=True, nullable=False, index=True)
+)
 
 
 class Processing(Base):
-    __tablename__ = 'Processings'
+    __tablename__ = 'processing'
 
-    processing_id = Column(INTEGER(11), primary_key=True, comment='unique ID of processing')
-    pipeline_id = Column(ForeignKey('Pipelines.pipeline_id', onupdate='CASCADE'), nullable=False, index=True, comment='unique ID of pipeline through which data is running')
-    hardware_id = Column(ForeignKey('Hardwares.hardware_id', onupdate='CASCADE'), index=True, comment='unique hardware iderntifier')
-    submit_time = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
-    start_time = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
-    end_time = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP"))
-    process_status = Column(Text, comment='status of processing')
-    metadata_ = Column('metadata', Text, comment='some extra parameters if any')
-    notes = Column(Text, comment='notes about processing')
+    id = Column(INTEGER(11), primary_key=True)
+    pipeline_id = Column(ForeignKey('pipeline.id', onupdate='CASCADE'), nullable=False, index=True)
+    hardware_id = Column(ForeignKey('hardware.id', onupdate='CASCADE'), index=True)
+    arguments_id = Column(ForeignKey('processing_arguments.id', onupdate='CASCADE'), index=True)
+    submit_time = Column(DateTime)
+    start_time = Column(DateTime)
+    end_time = Column(DateTime)
+    process_status = Column(String(20))
 
+    arguments = relationship('ProcessingArgument')
     hardware = relationship('Hardware')
     pipeline = relationship('Pipeline')
+    processing_requests = relationship('ProcessingRequest', secondary='processing_request_processings')
+
+
+class ProcessingRequest(Base):
+    __tablename__ = 'processing_request'
+
+    id = Column(INTEGER(11), primary_key=True)
+    user_id = Column(ForeignKey('user.id', onupdate='CASCADE'), nullable=False, index=True)
+    pipeline_id = Column(ForeignKey('pipeline.id', onupdate='CASCADE'), nullable=False, index=True)
+    arguments_id = Column(ForeignKey('processing_arguments.id', onupdate='CASCADE'), index=True)
+    name = Column(String(64))
+    dispatcher_args_json = Column(Text)
+    dispatched_at = Column(DateTime)
+    dispatched_to = Column(String(64))
+
+    arguments = relationship('ProcessingArgument')
+    pipeline = relationship('Pipeline')
+    user = relationship('User')
+
+
+class WorkingGroup(Base):
+    __tablename__ = 'working_group'
+
+    id = Column(INTEGER(11), primary_key=True)
+    name = Column(String(120), unique=True)
+    description = Column(String(500))
+    chair_user_id = Column(ForeignKey('user.id', onupdate='CASCADE'), index=True)
+    outreach_liaison_user_id = Column(ForeignKey('user.id', onupdate='CASCADE'), index=True)
+
+    chair_user = relationship('User', primaryjoin='WorkingGroup.chair_user_id == User.id')
+    outreach_liaison_user = relationship('User', primaryjoin='WorkingGroup.outreach_liaison_user_id == User.id')
+
+
+t_memberships = Table(
+    'memberships', metadata,
+    Column('user_id', ForeignKey('user.id'), primary_key=True, nullable=False),
+    Column('working_group_id', ForeignKey('working_group.id'), primary_key=True, nullable=False, index=True)
+)
+
+
+t_processing_request_processings = Table(
+    'processing_request_processings', metadata,
+    Column('processing_id', ForeignKey('processing.id'), primary_key=True, nullable=False),
+    Column('processing_request_id', ForeignKey('processing_request.id'), primary_key=True, nullable=False, index=True)
+)
+
+
+class Project(Base):
+    __tablename__ = 'project'
+
+    id = Column(INTEGER(11), primary_key=True)
+    name = Column(String(120), unique=True)
+    description = Column(String(500))
+    working_group_id = Column(ForeignKey('working_group.id', onupdate='CASCADE'), index=True)
+    coordinator_user_id = Column(ForeignKey('user.id', onupdate='CASCADE'), index=True)
+
+    coordinator_user = relationship('User')
+    working_group = relationship('WorkingGroup')
 
 
 class Target(Base):
-    __tablename__ = 'Targets'
+    __tablename__ = 'target'
 
-    target_id = Column(INTEGER(11), primary_key=True, comment='unqiue ID of target')
-    project_id = Column(ForeignKey('Projects.project_id', onupdate='CASCADE'), nullable=False, index=True, comment='unique project name identifer')
-    source_name = Column(Text, comment='Name of source')
-    ra = Column(CHAR(20))
-    dec = Column(CHAR(20))
-    region = Column(CHAR(20))
-    semi_major_axis = Column(Float, nullable=False, server_default=text("'0'"), comment='length of semi major axis of elliptic target region')
-    semi_minor_axis = Column(Float, nullable=False, server_default=text("'0'"), comment='length of semi minor axis of elliptic target region')
-    position_angle = Column(Float, nullable=False, server_default=text("'0'"), comment='angle of source system with respect to plane of sky; edge on is 90 deg')
-    metadata_ = Column('metadata', CHAR(20))
-    notes = Column(Text, nullable=False, comment='useful points to be noted')
+    id = Column(INTEGER(11), primary_key=True)
+    project_id = Column(ForeignKey('project.id', onupdate='CASCADE'), index=True)
+    source_name = Column(String(64))
+    ra = Column(String(20))
+    dec = Column(String(20))
+    region = Column(String(20))
+    semi_major_axis = Column(Float)
+    semi_minor_axis = Column(Float)
+    position_angle = Column(Float)
+    metainfo = Column(Text)
+    notes = Column(Text)
 
-    project = relationship('Project_')
+    project = relationship('Project')
 
 
 class Pointing(Base):
-    __tablename__ = 'Pointings'
+    __tablename__ = 'pointing'
 
-    pointing_id = Column(INTEGER(11), primary_key=True, comment='unique pointing id')
-    target_id = Column(ForeignKey('Targets.target_id', onupdate='CASCADE'), nullable=False, index=True, comment='pointing identifier')
-    bf_config_id = Column(ForeignKey('Beamformer_Configuration.bf_config_id', onupdate='CASCADE'), nullable=False, index=True, comment='subarray identifier')
-    tobs = Column(Float, comment='Observation time (s)')
-    utc_start = Column(TIMESTAMP(fsp=6), nullable=False, server_default=text("CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)"))
-    sb_id = Column(Text, nullable=False, comment='scheduling block ID')
-    mkat_pid = Column(Text, nullable=False, comment='MeerKAT project ID used for schedule blocks')
-    metadata_ = Column('metadata', Text)
-    notes = Column(Text)
-    beam_shape = Column(Text, comment='coherent beam parameters')
+    id = Column(INTEGER(11), primary_key=True)
+    target_id = Column(ForeignKey('target.id', onupdate='CASCADE'), nullable=False, index=True)
+    bf_config_id = Column(ForeignKey('beamformer_configuration.id', onupdate='CASCADE'), nullable=False, index=True)
+    observation_length = Column(Float)
+    utc_start = Column(DateTime, nullable=False)
+    sb_id = Column(Text, nullable=False)
+    mkat_pid = Column(Text, nullable=False)
+    beam_shape = Column(Text)
 
     bf_config = relationship('BeamformerConfiguration')
     target = relationship('Target')
 
 
 class Beam(Base):
-    __tablename__ = 'Beams'
+    __tablename__ = 'beam'
 
-    beam_id = Column(INTEGER(11), primary_key=True, comment='unique beam identifier')
-    pointing_id = Column(ForeignKey('Pointings.pointing_id', onupdate='CASCADE'), nullable=False, index=True)
-    on_target = Column(TINYINT(1), nullable=False, comment='Indicate on and off axis beams: 1 yes , 0 no')
-    ra = Column(String(255))
-    decl = Column(String(255))
-    coherent = Column(TINYINT(1), comment=' Coherent or incoherent beam')
-    beam_name = Column(String(100))
+    id = Column(INTEGER(11), primary_key=True)
+    pointing_id = Column(ForeignKey('pointing.id', onupdate='CASCADE'), nullable=False, index=True)
+    on_target = Column(TINYINT(1), nullable=False)
+    ra = Column(String(20))
+    dec = Column(String(20))
+    coherent = Column(TINYINT(1))
+    name = Column(String(20))
 
     pointing = relationship('Pointing')
+    processing_requests = relationship('ProcessingRequest', secondary='processing_request_beams')
 
 
 class DataProduct(Base):
-    __tablename__ = 'Data_Products'
+    __tablename__ = 'data_product'
+    __table_args__ = (
+        Index('_full_file_path', 'filename', 'filepath', unique=True),
+    )
 
-    dp_id = Column(INTEGER(11), primary_key=True, index=True, comment='unique derivative products ID')
-    pointing_id = Column(ForeignKey('Pointings.pointing_id', onupdate='CASCADE'), nullable=False, index=True)
-    beam_id = Column(ForeignKey('Beams.beam_id', onupdate='CASCADE'), nullable=False, index=True, comment='beam identifer')
-    processing_id = Column(INTEGER(11), comment='unique ID of processing it created')
-    state_id = Column(ForeignKey('File_States.state_id', onupdate='CASCADE'), nullable=False, index=True)
-    filename = Column(String(50), nullable=False, comment='file basename')
-    filepath = Column(String(255))
+    id = Column(INTEGER(11), primary_key=True, index=True)
+    pointing_id = Column(ForeignKey('pointing.id', onupdate='CASCADE'), nullable=False, index=True)
+    beam_id = Column(ForeignKey('beam.id', onupdate='CASCADE'), nullable=False, index=True)
+    processing_id = Column(ForeignKey('processing.id', onupdate='CASCADE'), index=True)
+    file_type_id = Column(ForeignKey('file_type.id', onupdate='CASCADE'), nullable=False, index=True)
+    filename = Column(String(64), nullable=False)
+    filepath = Column(String(255), nullable=False)
     filehash = Column(String(100))
+    available = Column(TINYINT(1), nullable=False)
+    locked = Column(TINYINT(1), nullable=False)
+    upload_date = Column(DateTime, nullable=False)
+    modification_date = Column(DateTime, nullable=False)
     metainfo = Column(Text)
-    file_type_id = Column(ForeignKey('File_Types.file_type_id'), nullable=False, index=True, comment='file type identifier')
-    upload_date = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"), comment='Upload date of dataproduct info in db')
-    modification_date = Column(TIMESTAMP, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"))
 
     beam = relationship('Beam')
     file_type = relationship('FileType')
     pointing = relationship('Pointing')
-    state = relationship('FileState')
-
-
-class ProcessingPivot(Base):
-    __tablename__ = 'Processing_Pivot'
-
-    processing_pivot_id = Column(INTEGER(11), primary_key=True, comment='unique pivot id')
-    dp_id = Column(ForeignKey('Data_Products.dp_id', onupdate='CASCADE'), nullable=False, index=True, comment='dataproduct_id')
-    processing_id = Column(ForeignKey('Processings.processing_id', onupdate='CASCADE'), nullable=False, index=True, comment='processing identifier')
-
-    dp = relationship('DataProduct')
     processing = relationship('Processing')
+    processings = relationship('Processing', secondary='processing_inputs')
 
+
+t_processing_request_beams = Table(
+    'processing_request_beams', metadata,
+    Column('beam_id', ForeignKey('beam.id'), primary_key=True, nullable=False),
+    Column('processing_request_id', ForeignKey('processing_request.id'), primary_key=True, nullable=False, index=True)
+)
+
+
+class FileActionRequest(Base):
+    __tablename__ = 'file_action_request'
+
+    id = Column(INTEGER(11), primary_key=True)
+    data_product_id = Column(ForeignKey('data_product.id', onupdate='CASCADE'), nullable=False, index=True)
+    action_id = Column(ForeignKey('file_action.id', onupdate='CASCADE'), nullable=False, index=True)
+    requested_at = Column(DateTime, nullable=False)
+    completed_at = Column(DateTime)
+    success = Column(TINYINT(1), nullable=False)
+
+    action = relationship('FileAction')
+    data_product = relationship('DataProduct')
+
+
+t_processing_inputs = Table(
+    'processing_inputs', metadata,
+    Column('dp_id', ForeignKey('data_product.id'), primary_key=True, nullable=False),
+    Column('processing_id', ForeignKey('processing.id'), primary_key=True, nullable=False, index=True)
+)

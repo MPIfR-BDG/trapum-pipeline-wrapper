@@ -36,11 +36,11 @@ if __name__ == '__main__':
 
     parser = optparse.OptionParser()
     pika_wrapper.add_pika_process_opts(parser)
-    TrapumPipelineWrapper.add_options(...,parser)
+    TrapumPipelineWrapper.add_options(parser)
     opts,args = parser.parse_args()
 
     #processor = pika_wrapper.PikaProcess(...)
     processor = pika_wrapper.pika_process_from_opts(opts)
-    pipeline_wrapper = TrapumPipelineWrapper(opts.database,null_pipeline)
+    pipeline_wrapper = TrapumPipelineWrapper(opts,null_pipeline)
     processor.process(pipeline_wrapper.on_receive)
 

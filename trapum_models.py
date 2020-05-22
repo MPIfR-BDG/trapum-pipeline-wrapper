@@ -115,6 +115,11 @@ t_membership_roles = Table(
     Column('membership_role_id', ForeignKey('membership_role.id'), primary_key=True, nullable=False, index=True)
 )
 
+t_processing_inputs = Table(
+    'processing_inputs', metadata,
+    Column('dp_id', ForeignKey('data_product.id'), primary_key=True, nullable=False),
+    Column('processing_id', ForeignKey('processing.id'), primary_key=True, nullable=False, index=True)
+)
 
 class Processing(Base):
     __tablename__ = 'processing'
@@ -132,6 +137,7 @@ class Processing(Base):
     hardware = relationship('Hardware')
     pipeline = relationship('Pipeline')
     processing_requests = relationship('ProcessingRequest', secondary='processing_request_processings')
+    inputs = relationship('DataProduct',secondary=t_processing_inputs,lazy=True)
 
 
 class ProcessingRequest(Base):
@@ -288,8 +294,3 @@ class FileActionRequest(Base):
     data_product = relationship('DataProduct')
 
 
-t_processing_inputs = Table(
-    'processing_inputs', metadata,
-    Column('dp_id', ForeignKey('data_product.id'), primary_key=True, nullable=False),
-    Column('processing_id', ForeignKey('processing.id'), primary_key=True, nullable=False, index=True)
-)

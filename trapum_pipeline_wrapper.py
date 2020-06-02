@@ -13,10 +13,11 @@ log = logging.getLogger('trapum_pipeline_wrapper')
 
 
 class TrapumPipelineWrapper(object):
-    def __init__(self, database, pipeline_callable):
+    def __init__(self, opts, pipeline_callable):
         self._pipeline_callable = pipeline_callable
         self._processing_id = None
-        self._session_engine = create_engine(database, echo=False, poolclass=NullPool)
+        self._opts = opts 
+        self._session_engine = create_engine(opts.database, echo=False, poolclass=NullPool)
         self._session_factory = sessionmaker(
             bind=self._session_engine)
         self._hardware_id = self.get_hardware_id()
@@ -128,7 +129,8 @@ class TrapumPipelineWrapper(object):
             processing.process_status = "failed"
             session.add(processing)
 
-    def add_options(self, parser):
+    @staticmethod
+    def add_options(parser):
         parser.add_option('','--db', dest="database", type=str,
             help='SQLAlchemy database descriptor')
 

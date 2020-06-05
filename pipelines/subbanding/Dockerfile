@@ -70,6 +70,12 @@ RUN git clone https://github.com/MPIfR-BDG/trapum-pipeline-wrapper.git && \
 # Add pipeline wrapper to pythonpath
 ENV PYTHONPATH $PYTHONPATH:/software/trapum-pipeline-wrapper
 
+# Add digifil libraries to library path
+ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/software/trapum-pipeline-wrapper/utils/digifil_libs
+
+# Add utils to $PATH
+ENV PATH $PATH:/software/trapum-pipeline-wrapper/utils
+
 
 # IQRM 
 

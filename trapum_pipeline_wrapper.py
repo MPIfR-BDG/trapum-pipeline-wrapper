@@ -114,6 +114,7 @@ class TrapumPipelineWrapper(object):
                     beam_id=dp["beam_id"],
                     pointing_id=dp["pointing_id"],
                     processing_id=processing.id,
+                    metainfo=dp["metainfo"],
                     filehash=filehash, 
                     available=True,
                     locked=True

@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: subband-interactive
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: subband-interactive
+  template:
+    metadata:
+      labels:
+        app: subband-interactive
+    spec:
+      securityContext:
+        runAsUser: 0
+      restartPolicy: Always
+      containers:
+      - name: subband-container
+        image: prajwalvp/trapum_subbander
+        command: ["/bin/bash","-c"]
+        args: ["python3.6 webpage_subband_new_pipeline.py -H 10.98.76.200 -p 31861 --input=iqrsubbanding_20200528 --db=mysql+pymysql://root:trapumdb@10.98.76.30:30002/trapum_web_test"]
+        imagePullPolicy: Always
+        stdin: true
+        tty: true        
+        volumeMounts:
+        - mountPath: /beegfs/DATA
+          name: input-volume
+          readOnly: true
+        - mountPath: /beegfs/PROCESSING
+          name: output-volume
+      volumes:
+      - name: input-volume
+        hostPath:
+          path: /beegfs/DATA
+          type: Directory
+      - name: output-volume
+        hostPath:
+          path: /beegfs/PROCESSING
+          type: Directory

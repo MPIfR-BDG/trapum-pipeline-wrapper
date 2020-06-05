@@ -55,7 +55,7 @@ def merge_filterbanks(digifil_script):
         log.error(error)
 
 def update_telescope_id(input_file):
-    script = "./alex_filterbank_change_header -telescope MeerKAT -files \"%s\""%input_file    
+    script = "alex_filterbank_change_header -telescope MeerKAT -files \"%s\""%input_file    
     try:
         subprocess.check_call(script,shell=True)
         log.info("Successfully updated")
@@ -135,7 +135,7 @@ def subband_pipeline(data):
             partial_base = os.path.basename(dp_list[0])
             partial_name = partial_base.split('_')[0] + '_' +  partial_base.split('_')[1]   
             merged_file = "%s/%s_p_id_%d.fil"%(output_dir,partial_name,processing_id) 
-            digifil_script = "/beegfs/u/prajwalvp/digifil %s -b 8 -threads 15 -o %s"%(all_files,merged_file)
+            digifil_script = "digifil %s -b 8 -threads 15 -o %s"%(all_files,merged_file)
             merge_filterbanks(digifil_script)
 
             # Get header of merged file

@@ -56,11 +56,11 @@ RUN pip install git+https://github.com/pravirkr/sigpyproc3
 # TRAPUM utilities
 
 RUN pip install xxhash && \
-    pip install pika && \
     pip install pymysql && \
+    pip install pika && \
+    pip install sqlacodegen && \ 
     pip install sqlalchemy  && \
-    pip install mysqlclient && \ 
-    pip install sqlacodegen 
+    pip install mysqlclient 
 
 
 RUN git clone https://github.com/MPIfR-BDG/trapum-pipeline-wrapper.git && \

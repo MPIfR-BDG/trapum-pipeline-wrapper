@@ -59,8 +59,8 @@ RUN pip install xxhash && \
     pip install pika && \
     pip install pymysql && \
     pip install sqlalchemy  && \
-    pip install sqlacodegen && \
-    pip install mysqlclient 
+    pip install mysqlclient && \ 
+    pip install sqlacodegen 
 
 
 RUN git clone https://github.com/MPIfR-BDG/trapum-pipeline-wrapper.git && \

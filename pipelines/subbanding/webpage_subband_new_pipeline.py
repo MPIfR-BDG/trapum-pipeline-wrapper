@@ -29,6 +29,8 @@ def iqr_filter(merged_file,processing_args,output_dir): # add tsamp,nchans to pr
         return iqr_file
 
     except Exception as error:
+        log.info("Error. Cleaning up partial file...")
+        subprocess.check_call("rm %s"%iqr_file,shell=True) 
         log.error(error)
 
 
@@ -44,14 +46,18 @@ def subband_fil(merged_file,processing_args):
         log.info("Successfully subbanded file")
         return subbanded_file  
     except Exception as error:
+        log.info("Error. Cleaning up partial file...")
+        subprocess.check_call("rm %s"%subbanded_file,shell=True) 
         log.error(error)
 
-def merge_filterbanks(digifil_script):
+def merge_filterbanks(digifil_script,merged_file):
 
     try:
         subprocess.check_call(digifil_script,shell=True)
         log.info("Successfully merged")
     except Exception as error:
+        log.info("Error. Cleaning up partial file...")
+        subprocess.check_call("rm %s"%merged_file,shell=True) 
         log.error(error)
 
 def update_telescope_id(input_file):
@@ -136,7 +142,7 @@ def subband_pipeline(data):
             partial_name = partial_base.split('_')[0] + '_' +  partial_base.split('_')[1]   
             merged_file = "%s/%s_p_id_%d.fil"%(output_dir,partial_name,processing_id) 
             digifil_script = "digifil %s -b 8 -threads 15 -o %s"%(all_files,merged_file)
-            merge_filterbanks(digifil_script)
+            merge_filterbanks(digifil_script,merged_file)
 
             # Get header of merged file
             filterbank_header = get_fil_dict(merged_file)       
@@ -181,9 +187,7 @@ def subband_pipeline(data):
                              dec=subband_header['dec'],
                              refdm=ref_dm
                            )  
-            
-               
-           
+                       
             dp = dict(
                      type="filterbank-iqrm-%d-%dus-%ddm"%(new_chans,sampling_number,ref_dm),
                      filename=os.path.basename(subbanded_file),

@@ -17,9 +17,20 @@ spec:
       restartPolicy: Always
       containers:
       - name: subband-container
-        image: prajwalvp/trapum_subbander
+        image: prajwalvp/trapum_subbander 
+        env:
+          - name: SECRET_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: db-user-pass
+                key: username
+          - name: SECRET_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: db-user-pass
+                key: password
         command: ["/bin/bash","-c"]
-        args: ["python3.6 webpage_subband_new_pipeline.py -H 10.98.76.200 -p 31861 --input=iqrsubbanding_20200528 --db=mysql+pymysql://root:trapumdb@10.98.76.30:30002/trapum_web_test"]
+        args: ["python3.6 webpage_subband_new_pipeline.py -H 10.98.76.200 -p 31861 --input=iqrsubbanding_20200528  --db=mysql+pymysql://${SECRET_USERNAME}:${SECRET_PASSWORD}@10.98.76.30:30002/trapum_web"]
         imagePullPolicy: Always
         stdin: true
         tty: true        

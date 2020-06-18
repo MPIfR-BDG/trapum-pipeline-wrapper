@@ -57,8 +57,8 @@ RUN pip install git+https://github.com/pravirkr/sigpyproc3
 
 RUN pip install xxhash && \
     pip install pymysql && \
-    pip install pika && \
     pip install sqlacodegen && \ 
+    pip install pika && \
     pip install sqlalchemy  && \
     pip install mysqlclient 
 

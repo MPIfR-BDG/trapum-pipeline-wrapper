@@ -131,7 +131,7 @@ def peasoup_pipeline(data):
 
             # Run peasoup
             peasoup_script = "peasoup -k Ter5_16apr_rfifind.badchan_peasoup -z trapum_latest.birdies  -i %s --dm_start %.2f --dm_end %.2f --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s"%(merged_file,processing_args['min_dm'],processing_args['max_dm'],processing_args['candidate_limit'],int(processing_args['nharmonics']),processing_args['snr_threshold'],processing_args['start_accel'],processing_args['end_accel'],fft_size,output_dir)
-                call_peasoup(peasoup_script)
+            call_peasoup(peasoup_script)
 
             # Remove merged file after searching
             cand_peasoup = data["base_output_dir"]+'/candidates.peasoup'

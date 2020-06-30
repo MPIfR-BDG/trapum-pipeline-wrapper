@@ -1,0 +1,53 @@
+#!/usr/bin/env python
+
+#################### ALESSANDRO RIDOLFI ########################
+#                     Version 1.0-beta1                        #
+#                    Bonn, November 2017                       #
+################################################################
+
+
+import sys, os, os.path, glob, shutil
+import struct
+
+
+
+dict_telescopes_ids = {'SRT': 10, 'Arecibo': 1, 'Nancay': 3, 'Parkes': 4, 'Jodrell': 5, 'GBT': 6, 'Effelsberg': 8, 'MeerKAT': 64}
+
+#ARGOMENTI DA SHELL
+string_version = "1.0-beta1 (12Nov2017)"
+if (len(sys.argv) == 1 or ("-h" in sys.argv) or ("-help" in sys.argv) or ("--help" in sys.argv)):
+    print("USAGE: %s -telescope {SRT,Arecibo,Nancay,Parkes,Jodrell,GBT,Effelsberg} -files \"*.fil\" " % (os.path.basename(sys.argv[0])))
+    print()
+    exit()
+elif (("-version" in sys.argv) or ("--version" in sys.argv)):
+        print("Version: %s" % (string_version))
+        exit()
+else:
+    for n in range(1, len(sys.argv)-1):
+        if (sys.argv[n] == "-telescope"):
+            string_telescope = sys.argv[n+1]
+        elif (sys.argv[n] == "-files"):
+            string_files = sys.argv[n+1]
+            if ("*" in string_files) or ("?" in string_files):
+                print(string_files.strip("\""))
+                list_filfiles = sorted(glob.glob(string_files.strip("\"")))
+            else:
+                list_filfiles = string_files.replace(" ","").split(",")
+                
+                                                
+            
+
+
+for filfile_name in list_filfiles:
+    filfile_basename = os.path.splitext(filfile_name)[0]
+
+    filfile = open(filfile_name, "r+")
+    header_string = filfile.read(500)
+    index = header_string.find("telescope_id")
+
+    read_value = struct.unpack("I", header_string[index+len("telescope_id"):index+len("telescope_id")+4])
+    #print
+    #print "Value read: %s" % read_value
+    filfile.seek(index + len("telescope_id"))
+    filfile.write(struct.pack("I",dict_telescopes_ids[string_telescope]))
+    filfile.close()

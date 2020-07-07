@@ -11,6 +11,7 @@ from pymongo import MongoClient
 from xmljson import parker
 import os
 import math
+import sys
 import numpy as np
 
 
@@ -144,48 +145,46 @@ def peasoup_pipeline(data):
                 dm_segs = int(math.ceil(len(dm_list)/float(dm_trial_lim)))
                 for i in range(dm_segs):
                     if i ==dm_segs -1:
-                        dm_list_split = [round(float(dm), 3) for dm in dm_list[i*dm_trial_lim:]]
+                        dm_list_split = [round(float(dm), 2) for dm in dm_list[i*dm_trial_lim:]]
                         dm_list_name = "p_id_%d_"%processing_id + "dm_%f_%f"%(dm_list_split[0],dm_list_split[-1]) 
-                        np.savetxt(dm_list_name,dm_list_split,fmt='%.3f')
+                        np.savetxt(dm_list_name,dm_list_split,fmt='%.2f')
 
                     else:
                         print ("Set number %d"%i)
-                        dm_list_split = [round(float(dm), 3) for dm in dm_list[i*dm_trial_lim:(i+1)*dm_trial_lim]]
+                        dm_list_split = [round(float(dm), 2) for dm in dm_list[i*dm_trial_lim:(i+1)*dm_trial_lim]]
+                        print (dm_list_split) 
                         dm_list_name = "p_id_%d_"%processing_id + "dm_%f_%f"%(dm_list_split[0],dm_list_split[-1]) 
-                        np.savetxt(dm_list_name,dm_list_split,fmt='%.3f')
+                        np.savetxt(dm_list_name,dm_list_split,fmt='%.2f')
                     output_dir = data['base_output_dir'] + '/' + os.path.basename(dm_list_name)
                     peasoup_script = "peasoup -k Ter5_4096chans_mask_rfifind.badchan_peasoup -z trapum_latest.birdies  -i %s --dm_file %s --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s"%(merged_file,dm_list_name,processing_args['candidate_limit'],int(processing_args['nharmonics']),processing_args['snr_threshold'],processing_args['start_accel'],processing_args['end_accel'],fft_size,output_dir)
                     print(peasoup_script)
-                    call_peasoup(peasoup_script)
-                    
+                    #call_peasoup(peasoup_script)
+                sys.exit(0)
                     # Remove merged file after searching
-                    cand_peasoup = output_dir+'/candidates.peasoup'
-                    tmp_files=[]
-                    tmp_files.append(cand_peasoup)
-                    tmp_files.append(dm_list_name)
-                    remove_temporary_files(tmp_files) 
+
+                    #cand_peasoup = output_dir+'/candidates.peasoup'
+                    #tmp_files=[]
+                    #if merged:
+                    #    tmp_files.append(merged_file)
+                    #tmp_files.append(cand_peasoup)
+                    #remove_temporary_files(tmp_files) 
             
              
-                    dp = dict(
-                         type="peasoup_xml",
-                         filename="overview.xml",
-                         directory=output_dir,
-                         beam_id = beam["id"],
-                         pointing_id = pointing["id"]
-                         )
+                    #dp = dict(
+                    #     type="peasoup_xml",
+                    #     filename="overview.xml",
+                    #     directory=output_dir,
+                    #     beam_id = beam["id"],
+                    #     pointing_id = pointing["id"]
+                    #     )
                
-                    output_dps.append(dp)
+                    #output_dps.append(dp)
 
 
                     # Update xml to MongoDB 
-                    client = MongoClient('mongodb://{}:{}@10.98.76.190:30003/'.format(os.environ['MONGO_USERNAME'], os.environ['MONGO_PASSWORD'])) # Add another secret for MongoDB
-                    doc = parker.data(lxml.etree.fromstring(open(output_dir+"/overview.xml", "rb").read()))
-                    client.trapum.peasoup_xml_files.update(doc, doc, True)
-                    
-                if merged:
-                    if '/beegfs/DATA' not in merged_file:
-                       log.info("Deleting file..")
-                       subprocess.check_call("rm %s"%merged_file,shell=True) 
+                    #client = MongoClient('mongodb://{}:{}@10.98.76.190:30003/'.format(os.environ['MONGO_USERNAME'], os.environ['MONGO_PASSWORD'])) # Add another secret for MongoDB
+                    #doc = parker.data(lxml.etree.fromstring(open(output_dir+"/overview.xml", "rb").read()))
+                    #client.trapum.peasoup_xml_files.update(doc, doc, True)
 
             else:
                 log.info("Searching full DM range... ")

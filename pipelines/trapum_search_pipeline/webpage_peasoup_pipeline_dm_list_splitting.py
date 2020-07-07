@@ -147,7 +147,7 @@ def peasoup_pipeline(data):
                         np.savetxt(dm_list_name,dm_list)
 
                     else:
-                        dm_list = dm_list[i*dm_trial_lim:(i+1)*dm_tria;_lim]
+                        dm_list = dm_list[i*dm_trial_lim:(i+1)*dm_trial_lim]
                         dm_list_name = processing_args['dm_list']+ "dm_%f_%f"%(dm_list[0],dm_list[-1]) 
                         np.savetxt(dm_list_name,dm_list)
                                         

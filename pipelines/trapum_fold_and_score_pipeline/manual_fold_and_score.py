@@ -1,4 +1,3 @@
-import os
 import glob
 import sys
 import time
@@ -13,7 +12,6 @@ import optparse
 from optparse import OptionParser
 import trapum_pipeline_wrapper
 from trapum_pipeline_wrapper import TrapumPipelineWrapper
-import pika_wrapper
 import optparse
 from sqlalchemy.pool import NullPool
 import subprocess
@@ -45,9 +43,8 @@ def make_tarfile(output_path,input_path,name):
         tar.add(input_path, arcname= name)
 
 def fold_and_score_pipeline(data):
-    print(data)
+
     output_dps = []
-    dp_list=[]
 
     '''
     required from pipeline: Filetype, filename, beam id , pointing id, directory
@@ -70,16 +67,7 @@ def fold_and_score_pipeline(data):
                 else:
                     dp_list.append(dp["filename"])
 
-            print(xml_file) 
-            tar_name = extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_list)
-            dp = dict(
-             type="candidate_tar_file",
-             filename=tar_name,
-             directory=data["base_output_dir"],
-             beam_id=beam["id"],
-             pointing_id=pointing["id"],
-             metainfo=json.dumps("tar_file:folds+scored")
-             ) 
+            dp = extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_list)
             output_dps.append(dp)
 
     return output_dps
@@ -141,9 +129,9 @@ def extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_
  
     source_name = xml['source_name']    
     #mask_path = xml['killfile_name'].split(".")[0]+".mask"
-    mask_path = "/beegfs/u/prajwalvp/trapum_processing/01_RFIFIND/2020-04-16-00:59:26_cfbf00000_p_id_15940_iqrm_sub_rfifind.mask" #Hardcoded
+    mask_path = "/beegfs/u/prajwalvp/trapum_processing/mask_for_beam2_Ter5_16apr20/Ter5_full_res_stats_time_2_rfifind.mask" #Hardcoded
 
-    batch_no = 24 # No of cores
+    batch_no = processings_args["batch_number"]
 
 
     # Make the output directory
@@ -155,12 +143,7 @@ def extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_
 
    
     # Get group of filenames
-    if len(dp_list)==1:            
-        input_name = dp_list[0]
-        #print("Ala") 
-    else:
-        input_name = ' '.join(dp_list)
-        #print("Ala_1") 
+    input_name = ' '.join(dp_list)
 
     # Run in batches
     extra = no_of_cands%batch_no
@@ -180,7 +163,7 @@ def extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_
            output_name= "dm_%.2f_acc_%.2f_candidate_number_%d"%(folding_packet['dm'],folding_packet['acc'],i)
            try:
                #process = subprocess.Popen(["prepfold","-ncpus","1","-mask",mask_path,"-noxwin","-nodmsearch","-topo","-p",str(folding_packet['period']),"-pd",str(folding_packet['pdot']),"-dm",str(folding_packet['dm']),input_name,"-o",output_name],cwd=output_path)
-               process = subprocess.Popen("prepfold -ncpus 1 -mask %s -noxwin -nodmsearch -topo -p %s -pd %s -dm %s %s -o %s"%(mask_path,str(folding_packet['period']),str(folding_packet['pdot']),str(folding_packet['dm']),input_name,output_name),shell=True,cwd=output_path)
+               process = subprocess.Popen("prepfold -ncpus %d -mask %s -noxwin -nodmsearch -topo -p %s -pd %s -dm %s %s -o %s"%(processing_args['ncpus'],mask_path,str(folding_packet['period']),str(folding_packet['pdot']),str(folding_packet['dm']),input_name,output_name),shell=True,cwd=output_path)
            except Exception as error:
                log.error(error)
                #continue
@@ -192,11 +175,37 @@ def extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_
 
     log.info("Folding done for processing. Scoring all candidates...") 
 
-    tar_name = subprocess.getoutput("python2 webpage_score.py --in_path=%s"%output_path)
-    
-    log.info("Scoring done...")      
-    # Remove original files 
+    # Load model
+    AI_PATH = '/'.join(ubc_AI.__file__.split('/')[:-1])
+    classifier = cPickle.load(open(AI_PATH+'/trained_AI/%s'%processing_args["model"],'rb'))
+    log.info("Loaded model %s"%processinng_args["model"])
 
+    # Find all files
+    pfdfile = glob.glob('%s/*.pfd'%(output_path))
+    log.info("Retrieved pfd files from %s"%(output_path))
+    
+    # Get scores  
+    AI_scores = classifier.report_score([pfdreader(f) for f in pfdfile])
+    log.info("Scored with model %s"%processing_args["model"])
+
+    # Sort based on highest score
+    pfdfile_sorted = [x for _,x in sorted(zip(AI_scores,pfdfile),reverse=True)]
+    AI_scores_sorted = sorted(AI_scores,reverse=True)
+    log.info("Sorted scores..")
+
+    text = '\n'.join(['%s %s' % (pfdfile_sorted[i], AI_scores_sorted[i]) for i in range(len(pfdfile))])
+
+    fout = open('%s/pics_original_descending_scores.txt'%output_path,'w')
+    fout.write(text)
+    log.info("Written to file in %s"%output_path)
+    fout.close()
+
+    #tar all files in this directory
+    tar_name = os.path.basename(output_path)+"_presto_cands.tar"
+    make_tarfile(output_path,output_path,tar_name)
+
+   
+    # Remove original files 
     subprocess.check_call("rm *pfd* *.txt",shell=True,cwd=output_path)
 
     # Update Dataproducts with peasoup output entry
@@ -215,15 +224,15 @@ def extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_
     #                 refdm=ref_dm
     #               )  
                
-    #dp = dict(
-    #         type="candidate_tar_file",
-    #         filename=os.path.basename(tar_name),
-    #         directory=data["base_output_dir"],
-    #         beam_id=beam["id"],
-    #         pointing_id=pointing["id"],
+    dp = dict(
+             type="candidate_tar_file",
+             filename=tar_name,
+             directory=data["base_output_dir"],
+             beam_id=beam["id"],
+             pointing_id=pointing["id"],
              #metainfo=json.dumps(meta_info)
-    #         ) 
-    return os.path.basename(tar_name)
+             ) 
+    return dp
 
                    
 if __name__ == '__main__':

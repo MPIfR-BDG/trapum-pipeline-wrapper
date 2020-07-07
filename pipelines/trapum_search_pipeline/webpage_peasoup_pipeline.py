@@ -6,6 +6,12 @@ from sqlalchemy.pool import NullPool
 import subprocess
 import logging
 import parseheader
+import lxml
+from pymongo import MongoClient
+from xmljson import parker
+
+
+
 
 
 log = logging.getLogger('peasoup_search_send')
@@ -121,8 +127,10 @@ def peasoup_pipeline(data):
             call_peasoup(peasoup_script)
 
             # Remove merged file after searching
+            cand_peasoup = data["base_output_dir"]+'/candidates.peasoup'
             tmp_files=[]
             tmp_files.append(merged_file)
+            tmp_files.append(cand_peasoup)
             remove_temporary_files(tmp_files) 
             
              
@@ -135,6 +143,12 @@ def peasoup_pipeline(data):
                  )
                
             output_dps.append(dp)
+
+
+            # Update xml to MongoDB 
+            client = MongoClient('mongodb://{}:{}@10.98.76.190:30003/'.format("admin", "admin")) # Add another secret for MongoDB
+            doc = parker.data(lxml.etree.fromstring(open(data["base_output_dir"]+"/overview.xml", "rb").read()))
+            client.trapum.peasoup_xml_files.update(doc, doc, True)
 
     return output_dps
 

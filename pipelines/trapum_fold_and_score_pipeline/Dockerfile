@@ -380,9 +380,8 @@ RUN pip3 install sqlacodegen
 
 
 WORKDIR $PSRHOME
-RUN rm -rf ./*.bz2 ./*.gz ./*.xz ./*.ztar ./*.zip
 RUN git clone https://github.com/MPIfR-BDG/trapum-pipeline-wrapper.git
+RUN rm -rf ./*.bz2 ./*.gz ./*.xz ./*.ztar ./*.zip
 
 
 
-# !! Add folding+scoring pipeline routine function to test_receive

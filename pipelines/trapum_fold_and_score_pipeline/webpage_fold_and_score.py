@@ -77,22 +77,22 @@ def fold_and_score_pipeline(data):
 
             if len(xml_files) > 1:
                 for xml_file in xml_files:
-                    tar_name = extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_list)
+                    tar_name, output_path = extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_list)
                     dp = dict(
                     type="candidate_tar_file",
                     filename=tar_name,
-                    directory=data["base_output_dir"],
+                    directory=output_path,
                     beam_id=beam["id"],
                     pointing_id=pointing["id"],
                     metainfo=json.dumps("tar_file:folds+scored")
                      ) 
                     output_dps.append(dp)
             else:
-                tar_name = extract_fold_and_score(processing_args,processing_id,output_dir,xml_files[0],dp_list)
+                tar_name, output_path = extract_fold_and_score(processing_args,processing_id,output_dir,xml_files[0],dp_list)
                 dp = dict(
                 type="candidate_tar_file",
                 filename=tar_name,
-                directory=data["base_output_dir"],
+                directory=output_path,
                 beam_id=beam["id"],
                 pointing_id=pointing["id"],
                 metainfo=json.dumps("tar_file:folds+scored")
@@ -214,7 +214,7 @@ def extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_
     # Remove original files 
     subprocess.check_call("rm *pfd* *.txt",shell=True,cwd=output_path)
 
-    return os.path.basename(tar_name)
+    return os.path.basename(tar_name),output_path
 
                    
 if __name__ == '__main__':

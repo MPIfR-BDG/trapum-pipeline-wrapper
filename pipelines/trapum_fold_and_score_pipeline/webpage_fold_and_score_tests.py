@@ -21,7 +21,7 @@ import logging
 from utils import header_util
 
 
-log = logging.getLogger('webpage_presto_fold')
+log = logging.getLogger('manual_presto_fold')
 FORMAT = "[%(levelname)s - %(asctime)s - %(filename)s:%(lineno)s] %(message)s"
 logging.basicConfig(format=FORMAT)
 log.setLevel('INFO')
@@ -46,6 +46,7 @@ def make_tarfile(output_path,input_path,name):
         tar.add(input_path, arcname= name)
 
 def fold_and_score_pipeline(data):
+    print(data)
     output_dps = []
     dp_list=[]
 
@@ -151,7 +152,8 @@ def extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_
 
     # Get number of candidates
     tmp1 = subprocess.getoutput("grep \'candidate id\' %s | tail -1 | awk \'{print $2}\'| grep -o \'.*\'"%xml_file)
-    no_of_cands  = int(re.findall(r"'(.*?)'", tmp1, re.DOTALL)[0])+1
+    #no_of_cands  = int(re.findall(r"'(.*?)'", tmp1, re.DOTALL)[0])+1
+    no_of_cands  = 1
          
 
     # Set all paths
@@ -159,8 +161,9 @@ def extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_
     output_path = xml_file.split('/overview.xml')[0]
  
     source_name = xml['source_name']    
+    #mask_path = xml['killfile_name'].split(".")[0]+".mask"
     #mask_path = "/beegfs/u/prajwalvp/trapum_processing/01_RFIFIND/2020-04-16-00:59:26_cfbf00000_p_id_15940_iqrm_sub_rfifind.mask" #Hardcoded
-    mask_path = "/beegfs/PROCESSING/TRAPUM/RFIFIND_masks/Ter5_16apr20_4096chan_freq_mask_light/Ter5_full_res_stats_time_2_rfifind.mask" #Hardcoded
+    mask_path = "/beegfs/PROCESSING/TRAPUM/RFIFIND_masks/Ter5_16apr20_4096chan_bp_edges_removed/Ter5_full_res_stats_time_2_rfifind.mask" #Hardcoded
 
     batch_no = 24 # No of cores
 
@@ -176,8 +179,10 @@ def extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_
     # Get group of filenames
     if len(dp_list)==1:            
         input_name = dp_list[0]
+        #print("Ala") 
     else:
         input_name = ' '.join(dp_list)
+        #print("Ala_1") 
 
     # Run in batches
     extra = no_of_cands%batch_no
@@ -196,9 +201,12 @@ def extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_
            folding_packet['dm'] = dm[i] 
            output_name= "dm_%.2f_acc_%.2f_candidate_number_%d"%(folding_packet['dm'],folding_packet['acc'],i)
            try:
+               #print("prepfold -ncpus 1 -mask %s -noxwin  -topo -p %s -pd %s -dm %s %s -o %s"%(mask_path,str(folding_packet['period']),str(folding_packet['pdot']),str(folding_packet['dm']),input_name,output_name))
+               #time.sleep(5)
                process = subprocess.Popen("prepfold -ncpus 1 -mask %s -noxwin -topo -p %s -pd %s -dm %s %s -o %s"%(mask_path,str(folding_packet['period']),str(folding_packet['pdot']),str(folding_packet['dm']),input_name,output_name),shell=True,cwd=output_path)
            except Exception as error:
                log.error(error)
+               #continue
  
        if  process.communicate()[0]==None:
            continue
@@ -209,11 +217,35 @@ def extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_
 
     tar_name = subprocess.getoutput("python2 webpage_score.py --in_path=%s"%output_path)
     
-    log.info("Scoring done...")     
- 
+    log.info("Scoring done...")      
     # Remove original files 
+
     subprocess.check_call("rm *pfd* *.txt",shell=True,cwd=output_path)
 
+    # Update Dataproducts with peasoup output entry
+    #dp_id = trapum.create_secondary_dataproduct(pb_list[0],pb_list[1],processing_id,1,"unscored_cands",str(output_path),10)
+
+    # Metainfo !!!! To be decided
+    #meta_info=dict(
+    #                 source_name=subband_header['source_name'],
+    #                 nbits=subband_header['nbits'],
+    #                 nchans=subband_header['nchans'],
+    #                 tstart=subband_header['tstart'],
+    #                 tsamp=subband_header['tsamp'], 
+    #                 nsamples=subband_header['nsamples'], 
+    #                 ra=subband_header['ra'], 
+    #                 dec=subband_header['dec'],
+    #                 refdm=ref_dm
+    #               )  
+               
+    #dp = dict(
+    #         type="candidate_tar_file",
+    #         filename=os.path.basename(tar_name),
+    #         directory=data["base_output_dir"],
+    #         beam_id=beam["id"],
+    #         pointing_id=pointing["id"],
+             #metainfo=json.dumps(meta_info)
+    #         ) 
     return os.path.basename(tar_name)
 
                    
@@ -224,7 +256,24 @@ if __name__ == '__main__':
     TrapumPipelineWrapper.add_options(parser)
     opts,args = parser.parse_args()
 
+    #processor = pika_wrapper.PikaProcess(...)
     processor = pika_wrapper.pika_process_from_opts(opts)
     pipeline_wrapper = TrapumPipelineWrapper(opts,fold_and_score_pipeline)
     processor.process(pipeline_wrapper.on_receive)
+
+
+    ################# Old style ###################
+    # Update all input arguments
+    #consume_parser = optparse.OptionParser()
+    #pika_process.add_pika_process_opts(consume_parser)
+    #opts,args = consume_parser.parse_args()
+
+
+    # Setup logging config
+    #log_type=opts.log_level
+    #log.setLevel(log_type.upper())
+
+    #Consume message from RabbitMQ 
+    #processor = pika_process.pika_process_from_opts(opts)
+    #processor.process(lambda message: receive_message(message,opts))
 

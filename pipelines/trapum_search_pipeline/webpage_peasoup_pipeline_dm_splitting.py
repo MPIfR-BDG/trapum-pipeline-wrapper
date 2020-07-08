@@ -29,6 +29,22 @@ def merge_filterbanks(digifil_script,merged_file):
         log.info("Error. Cleaning up partial file...")
         subprocess.check_call("rm %s"%merged_file,shell=True) 
         log.error(error)
+
+
+def iqr_filter(merged_file,processing_args,output_dir): # add tsamp,nchans to processing_args
+    iqr_file = output_dir+'/'+os.path.basename(merged_file)[:-4]+'_iqrm.fil'
+    samples = int(round(processing_args['window']/processing_args['tsamp']))
+    iqr_script = "iqrm_apollo_cli -m %d -t %.2f -s %d -f %d -i %s -o %s"%(processing_args['max_lags'],processing_args['threshold'],samples,processing_args['nchans'],merged_file,iqr_file)
+    log.info("Script that will run..")
+    log.info(iqr_script)
+    #time.sleep(5)
+    try:
+        subprocess.check_call(iqr_script,shell=True)
+        log.info("IQR filtering done on %s"%merged_file)
+
+        return iqr_file
+
+
          
 
 def call_peasoup(peasoup_script):

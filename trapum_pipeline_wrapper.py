@@ -12,7 +12,6 @@ import pika_wrapper
 
 log = logging.getLogger('trapum_pipeline_wrapper')
 
-{"processing_id": 87, "data": {"pointings": [{"id": 75, "beams": [{"id": 429, "data_products": [{"id": 14419, "filename": "/beegfs/DATA/TRAPUM/SCI-20180923-MK-01/20200502-0004/20200502_060511/cfbf00011/2020-05-02-06:05:18_cfbf00011_0000577799995392.fil"}, {"id": 14430, "filename": "/beegfs/DATA/TRAPUM/SCI-20180923-MK-01/20200502-0004/20200502_060511/cfbf00011/2020-05-02-06:05:18_cfbf00011_0000593849995264.fil"}, {"id": 14409, "filename": "/beegfs/DATA/TRAPUM/SCI-20180923-MK-01/20200502-0004/20200502_060511/cfbf00011/2020-05-02-06:05:18_cfbf00011_0000609899995136.fil"}, {"id": 14429, "filename": "/beegfs/DATA/TRAPUM/SCI-20180923-MK-01/20200502-0004/20200502_060511/cfbf00011/2020-05-02-06:05:18_cfbf00011_0000625949995008.fil"}, {"id": 14449, "filename": "/beegfs/DATA/TRAPUM/SCI-20180923-MK-01/20200502-0004/20200502_060511/cfbf00011/2020-05-02-06:05:18_cfbf00011_0000641999994880.fil"}, {"id": 14423, "filename": "/beegfs/DATA/TRAPUM/SCI-20180923-MK-01/20200502-0004/20200502_060511/cfbf00011/2020-05-02-06:05:18_cfbf00011_0000658049994752.fil"}, {"id": 14439, "filename": "/beegfs/DATA/TRAPUM/SCI-20180923-MK-01/20200502-0004/20200502_060511/cfbf00011/2020-05-02-06:05:18_cfbf00011_0000674099994624.fil"}, {"id": 14414, "filename": "/beegfs/DATA/TRAPUM/SCI-20180923-MK-01/20200502-0004/20200502_060511/cfbf00011/2020-05-02-06:05:18_cfbf00011_0000690149994496.fil"}, {"id": 14428, "filename": "/beegfs/DATA/TRAPUM/SCI-20180923-MK-01/20200502-0004/20200502_060511/cfbf00011/2020-05-02-06:05:18_cfbf00011_0000706199994368.fil"}, {"id": 14421, "filename": "/beegfs/DATA/TRAPUM/SCI-20180923-MK-01/20200502-0004/20200502_060511/cfbf00011/2020-05-02-06:05:18_cfbf00011_0000722249994240.fil"}, {"id": 14425, "filename": "/beegfs/DATA/TRAPUM/SCI-20180923-MK-01/20200502-0004/20200502_060511/cfbf00011/2020-05-02-06:05:18_cfbf00011_0000738299994112.fil"}, {"id": 14413, "filename": "/beegfs/DATA/TRAPUM/SCI-20180923-MK-01/20200502-0004/20200502_060511/cfbf00011/2020-05-02-06:05:18_cfbf00011_0000754349993984.fil"}]}]}]}, "processing_args": {"max_dm": 100.0, "min_dm": 0.0, "nharmonics": "0", "start_accel": 0.0, "end_accel": 0.0, "snr_threshold": 9.0, "candidate_limit": 1000, "channel_mask": "None", "birdie_list": "None"}, "base_output_dir": "/beegfs/PROCESSING/TRAPUM/example/2020/5/20/87_directory_pad___test"}
 
 # Create processing , inputs for processing, submit time 
 
@@ -23,7 +22,7 @@ class TrapumPipelineWrapper(object):
         self._pipeline_callable = pipeline_callable
         self._processing_id = None
         self._opts = opts
-        self._session_engine = create_engine(opts.database, echo=False, poolclass=NullPool)
+        self._session_engine = create_engine(opts.database, connect_args={'connect_timeout':100} ,echo=False, poolclass=NullPool)
         self._session_factory = sessionmaker(
             bind=self._session_engine)
         self._hardware_id = self.get_hardware_id()

@@ -166,7 +166,7 @@ def extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_
     if xml['nchans']== 256:
         mask_path = "/beegfs/PROCESSING/TRAPUM/RFIFIND_masks/Ter5_16apr20_256chan_mask/2020-04-16-00:59:26_cfbf00000_p_id_15940_iqrm_sub_rfifind.mask" # Hardcoded
 
-    batch_no = 24 # No of cores
+    batch_no = 18 # No of cores
 
 
     # Make the output directory

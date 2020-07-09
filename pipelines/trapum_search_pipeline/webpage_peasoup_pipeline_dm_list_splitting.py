@@ -100,13 +100,6 @@ def update_telescope_id(input_file):
         log.error(error)
 
 
-
-
-
-#process_manager = PikaProcess(...)
-#pipeline_wrapper = TrapumPipelineWrapper(..., null_pipeline)
-#process_manager.process(pipeline_wrapper.on_receive)
-
 def peasoup_pipeline(data):
     f = open('sample_message.txt','w')
     f.write(str(data))
@@ -146,6 +139,7 @@ def peasoup_pipeline(data):
             else:
                 merged = 0
                 merged_file = dp_list[0] 
+               
  
             # Get header of merged file
             filterbank_header = get_fil_dict(merged_file)       
@@ -153,11 +147,17 @@ def peasoup_pipeline(data):
             #IQR  
             processing_args['tsamp'] = float(filterbank_header['tsamp']) 
             processing_args['nchans'] = int(filterbank_header['nchans']) 
-            iqred_file = iqr_filter(merged_file,processing_args,output_dir)
+            if merged:  
+                iqred_file = iqr_filter(merged_file,processing_args,output_dir)
+            else:
+                iqred_file = merged_file
 
-
+           
             # Determine fft_size
-            fft_size = decide_fft_size(filterbank_header)
+            if merged:  
+                fft_size = decide_fft_size(filterbank_header)
+            else:
+                fft_size = 134217728 # Hard coded for max limit - tmp assuming 4hr, 76 us and 4k chans 
 
 
             # DM split if needed  
@@ -205,8 +205,9 @@ def peasoup_pipeline(data):
                     output_dps.append(dp)
 
 
-                    # Update xml to MongoDB 
-                    client = MongoClient('mongodb://{}:{}@10.98.76.190:30003/'.format(os.environ['MONGO_USERNAME'], os.environ['MONGO_PASSWORD'])) # Add another secret for MongoDB
+                    # Update xml to MongoDB
+                    print os.environ['MONGO_USERNAME'] 
+                    client = MongoClient('mongodb://{}:{}@10.98.76.190:30003/'.format(os.environ['MONGO_USERNAME'].strip('\n'), os.environ['MONGO_PASSWORD'].strip('\n'))) # Add another secret for MongoDB
                     doc = parker.data(lxml.etree.fromstring(open(output_dir+"/overview.xml", "rb").read()))
                     client.trapum.peasoup_xml_files.update(doc, doc, True)
 
@@ -253,7 +254,7 @@ def peasoup_pipeline(data):
 
 
                 # Update xml to MongoDB 
-                client = MongoClient('mongodb://{}:{}@10.98.76.190:30003/'.format(os.environ['MONGO_USERNAME'], os.environ['MONGO_PASSWORD'])) # Add another secret for MongoDB
+                client = MongoClient('mongodb://{}:{}@10.98.76.190:30003/'.format(os.environ['MONGO_USERNAME'].strip('\n'), os.environ['MONGO_PASSWORD'].strip('\n'))) # Add another secret for MongoDB
                 doc = parker.data(lxml.etree.fromstring(open(data["base_output_dir"]+"/overview.xml", "rb").read()))
                 client.trapum.peasoup_xml_files.update(doc, doc, True)
 

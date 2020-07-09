@@ -174,8 +174,11 @@ def extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_
         subprocess.check_call("mkdir -p %s"%output_path,shell=True)
     except:
         log.info("Subdirectory already made")
+        try:
+            subprocess.check_call("rm *pfd* *.txt",shell=True,cwd=output_path)
+        except:
+            pass
         pass
-
    
     # Get group of filenames
     if len(dp_list)==1:            

@@ -157,7 +157,7 @@ def peasoup_pipeline(data):
             if merged:  
                 fft_size = decide_fft_size(filterbank_header)
             else:
-                fft_size = 134217728 # Hard coded for max limit - tmp assuming 4hr, 76 us and 4k chans
+                fft_size = 67108864 # Hard coded for max limit - tmp assuming 4hr, 76 us and 4k chans , 2**27 has memory leak issue
 
             # Determine channel mask to use
             if processing_args['nchans'] == 4096:
@@ -189,7 +189,7 @@ def peasoup_pipeline(data):
                         np.savetxt(dm_list_name,dm_list_split,fmt='%.3f')
                     output_dir = data['base_output_dir'] + '/' + os.path.basename(dm_list_name)
                     log.info("Search begins... with the following command")
-                    peasoup_script = "peasoup -k %s -z trapum_latest.birdies  -i %s --dm_file %s --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s"%(chan_mask,iqred_file,dm_list_name,processing_args['candidate_limit'],int(processing_args['nharmonics']),processing_args['snr_threshold'],processing_args['start_accel'],processing_args['end_accel'],fft_size,output_dir)
+                    peasoup_script = "numactl --preferred 1 taskset -c 12-23 peasoup -k %s -z trapum_latest.birdies  -i %s --dm_file %s --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s"%(chan_mask,iqred_file,dm_list_name,processing_args['candidate_limit'],int(processing_args['nharmonics']),processing_args['snr_threshold'],processing_args['start_accel'],processing_args['end_accel'],fft_size,output_dir)
                     log.info(peasoup_script)
                     call_peasoup(peasoup_script)
                     
@@ -213,19 +213,18 @@ def peasoup_pipeline(data):
 
 
                     # Update xml to MongoDB
-                    print os.environ['MONGO_USERNAME'] 
                     client = MongoClient('mongodb://{}:{}@10.98.76.190:30003/'.format(os.environ['MONGO_USERNAME'].strip('\n'), os.environ['MONGO_PASSWORD'].strip('\n'))) # Add another secret for MongoDB
                     doc = parker.data(lxml.etree.fromstring(open(output_dir+"/overview.xml", "rb").read()))
                     client.trapum.peasoup_xml_files.update(doc, doc, True)
 
                 # Delete iqr file and merged file
-                if '/beegfs/DATA' not in iqred_file:  
-                    log.info("Deleting IQR file")
-                    subprocess.check_call("rm %s"%iqred_file,shell=True)                    
-                if merged:
-                    if '/beegfs/DATA' not in merged_file:
-                       log.info("Deleting merged file")
-                       subprocess.check_call("rm %s"%merged_file,shell=True) 
+                if '/beegfs/PROCESSING' in merged_file:
+                    if 'temp' in iqred_file:  
+                        log.info("Deleting IQR file")
+                        subprocess.check_call("rm %s"%iqred_file,shell=True)                    
+                    if 'temp' in merged_file:
+                        log.info("Deleting merged file")
+                        subprocess.check_call("rm %s"%merged_file,shell=True) 
 
             else:
                 log.info("Searching full DM range... ")
@@ -235,15 +234,20 @@ def peasoup_pipeline(data):
                 np.savetxt(dm_list_name,dm_list_float,fmt='%.3f')
                 
                  
-                peasoup_script = "peasoup -k %s -z trapum_latest.birdies  -i %s --dm_file %s --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s"%(chan_mask,iqred_file,dm_list_name,processing_args['candidate_limit'],int(processing_args['nharmonics']),processing_args['snr_threshold'],processing_args['start_accel'],processing_args['end_accel'],fft_size,output_dir)
+                peasoup_script = "numactl --preferred 1 taskset -c 12-23 peasoup -k %s -z trapum_latest.birdies  -i %s --dm_file %s --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s"%(chan_mask,iqred_file,dm_list_name,processing_args['candidate_limit'],int(processing_args['nharmonics']),processing_args['snr_threshold'],processing_args['start_accel'],processing_args['end_accel'],fft_size,output_dir)
+                log.info(peasoup_script)
                 call_peasoup(peasoup_script)
 
                 # Remove merged file after searching
                 cand_peasoup = data["base_output_dir"]+'/candidates.peasoup'
                 tmp_files=[]
+
                 if merged:
-                    tmp_files.append(merged_file)
-                tmp_files.append(iqred_file)
+                    if '/beegfs/PROCESSING' in merged_file:
+                        if 'temp' in merged_file and 'temp' in iqred_file:
+                            tmp_files.append(merged_file)
+                            tmp_files.append(iqred_file)
+
                 tmp_files.append(cand_peasoup)
                 tmp_files.append(dm_list_name)
                 remove_temporary_files(tmp_files) 

@@ -126,6 +126,7 @@ def extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_
     #raw_data_filename=root.find('header_parameters/rawdatafile').text 
     xml['epoch_start'] = float(root.find("header_parameters/tstart").text)
     xml['tsamp'] = float(root.find("header_parameters/tsamp").text)
+    xml['nchans'] = int(root.find("header_parameters/nchans").text)
     xml['no_of_samples'] = int(root.find("header_parameters/nsamples").text)
 
     #Search Parameters
@@ -160,7 +161,10 @@ def extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_
  
     source_name = xml['source_name']    
     #mask_path = "/beegfs/u/prajwalvp/trapum_processing/01_RFIFIND/2020-04-16-00:59:26_cfbf00000_p_id_15940_iqrm_sub_rfifind.mask" #Hardcoded
-    mask_path = "/beegfs/PROCESSING/TRAPUM/RFIFIND_masks/Ter5_16apr20_4096chan_freq_mask_light/Ter5_full_res_stats_time_2_rfifind.mask" #Hardcoded
+    if xml['nchans'] == 4096:
+        mask_path = "/beegfs/PROCESSING/TRAPUM/RFIFIND_masks/Ter5_16apr20_4096chan_freq_mask_light/Ter5_full_res_stats_time_2_rfifind.mask" #Hardcoded
+    if xml['nchans']== 256:
+        mask_path = "/beegfs/PROCESSING/TRAPUM/RFIFIND_masks/Ter5_16apr20_256chan_mask/2020-04-16-00:59:26_cfbf00000_p_id_15940_iqrm_sub_rfifind.mask" # Hardcoded
 
     batch_no = 24 # No of cores
 

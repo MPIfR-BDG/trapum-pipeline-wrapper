@@ -58,6 +58,7 @@ def merge_filterbanks(digifil_script,merged_file):
     except Exception as error:
         log.info("Error. Cleaning up partial file...")
         subprocess.check_call("rm %s"%merged_file,shell=True) 
+        subprocess.check_call(digifil_script,shell=True)
         log.error(error)
 
 def update_telescope_id(input_file):

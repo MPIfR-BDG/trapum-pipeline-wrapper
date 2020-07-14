@@ -137,8 +137,12 @@ def peasoup_pipeline(data):
                 time.sleep(5)
                 merge_filterbanks(digifil_script,merged_file)
             else:
-                merged = 0
-                merged_file = dp_list[0] 
+                merged_file = dp_list[0]
+                if 'sub' in merged_file: 
+                    merged = 0
+                else:
+                    merged = 1 # Just a flag to indicate if input file is a subbanded file
+         
                
  
             # Get header of merged file
@@ -157,7 +161,7 @@ def peasoup_pipeline(data):
             if merged:  
                 fft_size = decide_fft_size(filterbank_header)
             else:
-                fft_size = 67108864 # Hard coded for max limit - tmp assuming 4hr, 76 us and 4k chans , 2**27 has memory leak issue
+                fft_size = 67108864 # Hard coded for max limit - tmp assuming 4hr, 76 us and 4k chans , 2**27 has memory leak issue - add segmentation here
 
             # Determine channel mask to use
             if processing_args['nchans'] == 4096:

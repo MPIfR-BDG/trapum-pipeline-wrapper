@@ -10,14 +10,16 @@ import lxml
 from pymongo import MongoClient
 from xmljson import parker
 import os
+import math
+import numpy as np
+import time
 
 
 
-
-log = logging.getLogger('peasoup_search_send')
+log = logging.getLogger('peasoup_search')
 FORMAT = "[%(levelname)s - %(asctime)s - %(filename)s:%(lineno)s] %(message)s"
 logging.basicConfig(format=FORMAT)
-
+log.setLevel('INFO')
 
 def merge_filterbanks(digifil_script,merged_file):
 
@@ -25,8 +27,27 @@ def merge_filterbanks(digifil_script,merged_file):
         subprocess.check_call(digifil_script,shell=True)
         log.info("Successfully merged")
     except Exception as error:
+        log.error(error)
+        log.info("Error. Cleaning up partial file... and relaunching")
+        subprocess.check_call("rm %s"%merged_file,shell=True)
+        subprocess.check_call(digifil_script,shell=True) 
+
+def iqr_filter(merged_file,processing_args,output_dir): # add tsamp,nchans to processing_args
+    iqr_file = output_dir+'/'+os.path.basename(merged_file)[:-4]+'_iqrm.fil'
+    samples = int(round(processing_args['window']/processing_args['tsamp']))
+    iqr_script = "iqrm_apollo_cli -m %d -t %.2f -s %d -f %d -i %s -o %s"%(processing_args['max_lags'],processing_args['threshold'],samples,processing_args['nchans'],merged_file,iqr_file)
+    log.info("Script that will run..")
+    log.info(iqr_script)
+    #time.sleep(5)
+    try:
+        subprocess.check_call(iqr_script,shell=True)
+        log.info("IQR filtering done on %s"%merged_file)
+        return iqr_file
+
+
+    except Exception as error:
         log.info("Error. Cleaning up partial file...")
-        subprocess.check_call("rm %s"%merged_file,shell=True) 
+        subprocess.check_call("rm %s"%iqr_file,shell=True) 
         log.error(error)
          
 
@@ -79,15 +100,11 @@ def update_telescope_id(input_file):
         log.error(error)
 
 
-
-
-
-#process_manager = PikaProcess(...)
-#pipeline_wrapper = TrapumPipelineWrapper(..., null_pipeline)
-#process_manager.process(pipeline_wrapper.on_receive)
-
 def peasoup_pipeline(data):
-
+    f = open('sample_message.txt','w')
+    f.write(str(data))
+    f.close() 
+    
     output_dps = []
 
     '''
@@ -109,52 +126,100 @@ def peasoup_pipeline(data):
             for dp in  (beam["data_products"]):
                 dp_list.append(dp["filename"])
  
-           
+            dp_list.sort()           
             if len(dp_list) > 1: 
                 # Merge filterbanks
                 merged = 1
                 all_files = ' '.join(dp_list)   
                 merged_file = "%s/temp_merge_p_id_%d.fil"%(output_dir,processing_id) 
                 digifil_script = "digifil %s -b 8 -threads 15 -o %s"%(all_files,merged_file)
+                print(digifil_script)
+                time.sleep(2)
                 merge_filterbanks(digifil_script,merged_file)
             else:
                 merged = 0
-                merged_file = dp_list[0]  
-
+                merged_file = dp_list[0] 
+               
+ 
             # Get header of merged file
             filterbank_header = get_fil_dict(merged_file)       
 
+            #IQR  
+            processing_args['tsamp'] = float(filterbank_header['tsamp']) 
+            processing_args['nchans'] = int(filterbank_header['nchans']) 
+            if merged:  
+                iqred_file = iqr_filter(merged_file,processing_args,output_dir)
+            else:
+                iqred_file = merged_file
+
+           
             # Determine fft_size
-            fft_size = decide_fft_size(filterbank_header)
+            if merged:  
+                fft_size = decide_fft_size(filterbank_header)
+            else:
+                fft_size = 134217728 # Hard coded for max limit - tmp assuming 4hr, 76 us and 4k chans
+
+            # Determine channel mask to use
+            if processing_args['nchans'] == 4096:
+                chan_mask = "Ter5_4096chans_mask_rfifind.badchan_peasoup"
+            else:
+                chan_mask = "256_chan_mask_rfifind.badchan_peasoup" 
+             
 
 
+            # DM split if needed  
+            dm_list = processing_args['dm_list'].split(",")
 
-            # Run peasoup
-            peasoup_script = "peasoup -k Ter5_16apr_rfifind.badchan_peasoup -z trapum_latest.birdies  -i %s --dm_start %.2f --dm_end %.2f --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s"%(merged_file,processing_args['min_dm'],processing_args['max_dm'],processing_args['candidate_limit'],int(processing_args['nharmonics']),processing_args['snr_threshold'],processing_args['start_accel'],processing_args['end_accel'],fft_size,output_dir)
-            call_peasoup(peasoup_script)
+           
+
+            log.info("Searching full DM range... ")
+            dm_list = processing_args['dm_list'].split(",")
+            dm_list_float = [round(float(dm), 3) for dm in dm_list]
+            dm_list_name = "p_id_%d_"%processing_id + "dm_%f_%f"%(dm_list_float[0],dm_list_float[-1]) 
+            np.savetxt(dm_list_name,dm_list_float,fmt='%.3f')
+            
+             
+            if len(dm_list) > 1000:
+                peasoup_script = "peasoup -k %s -z trapum_latest.birdies  -i %s --dm_file %s --ndm_trial_gulp 1000 --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s"%(chan_mask,iqred_file,dm_list_name,processing_args['candidate_limit'],int(processing_args['nharmonics']),processing_args['snr_threshold'],processing_args['start_accel'],processing_args['end_accel'],fft_size,output_dir)
+                call_peasoup(peasoup_script)
+            else:
+                peasoup_script = "peasoup -k %s -z trapum_latest.birdies  -i %s --dm_file %s --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s"%(chan_mask,iqred_file,dm_list_name,processing_args['candidate_limit'],int(processing_args['nharmonics']),processing_args['snr_threshold'],processing_args['start_accel'],processing_args['end_accel'],fft_size,output_dir)
+ 
+                call_peasoup(peasoup_script)
+
 
             # Remove merged file after searching
             cand_peasoup = data["base_output_dir"]+'/candidates.peasoup'
             tmp_files=[]
             if merged:
                 tmp_files.append(merged_file)
+                tmp_files.append(iqred_file)
             tmp_files.append(cand_peasoup)
-            remove_temporary_files(tmp_files) 
+            tmp_files.append(dm_list_name)
+            remove_temporary_files(tmp_files)
+
+            meta_info=dict(
+                            fft_size=fft_size,
+                            dm_start = dm_list[0],
+                            dm_end = dm_list[-1],
+                            dm_step = dm_list[1] - dm_list[0],
+                            dm_gulp=1000 
+                           )  
             
-             
             dp = dict(
                  type="peasoup_xml",
                  filename="overview.xml",
                  directory=data["base_output_dir"],
                  beam_id = beam["id"],
-                 pointing_id = pointing["id"]
+                 pointing_id = pointing["id"],
+                 metainfo=meta_info
                  )
-               
+            
             output_dps.append(dp)
 
 
             # Update xml to MongoDB 
-            client = MongoClient('mongodb://{}:{}@10.98.76.190:30003/'.format(os.environ['MONGO_USERNAME'], os.environ['MONGO_PASSWORD'])) # Add another secret for MongoDB
+            client = MongoClient('mongodb://{}:{}@10.98.76.190:30003/'.format(os.environ['MONGO_USERNAME'].strip('\n'), os.environ['MONGO_PASSWORD'].strip('\n'))) # Add another secret for MongoDB
             doc = parker.data(lxml.etree.fromstring(open(data["base_output_dir"]+"/overview.xml", "rb").read()))
             client.trapum.peasoup_xml_files.update(doc, doc, True)
 

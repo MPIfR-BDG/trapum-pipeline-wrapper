@@ -126,6 +126,7 @@ def extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_
     #raw_data_filename=root.find('header_parameters/rawdatafile').text 
     xml['epoch_start'] = float(root.find("header_parameters/tstart").text)
     xml['tsamp'] = float(root.find("header_parameters/tsamp").text)
+    xml['nchans'] = int(root.find("header_parameters/nchans").text)
     xml['no_of_samples'] = int(root.find("header_parameters/nsamples").text)
 
     #Search Parameters
@@ -160,9 +161,12 @@ def extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_
  
     source_name = xml['source_name']    
     #mask_path = "/beegfs/u/prajwalvp/trapum_processing/01_RFIFIND/2020-04-16-00:59:26_cfbf00000_p_id_15940_iqrm_sub_rfifind.mask" #Hardcoded
-    mask_path = "/beegfs/PROCESSING/TRAPUM/RFIFIND_masks/Ter5_16apr20_4096chan_freq_mask_light/Ter5_full_res_stats_time_2_rfifind.mask" #Hardcoded
+    if xml['nchans'] == 4096:
+        mask_path = "/beegfs/PROCESSING/TRAPUM/RFIFIND_masks/Ter5_16apr20_4096chan_freq_mask_light/Ter5_full_res_stats_time_2_rfifind.mask" #Hardcoded
+    if xml['nchans']== 256:
+        mask_path = "/beegfs/PROCESSING/TRAPUM/RFIFIND_masks/Ter5_16apr20_256chan_mask/2020-04-16-00:59:26_cfbf00000_p_id_15940_iqrm_sub_rfifind.mask" # Hardcoded
 
-    batch_no = 24 # No of cores
+    batch_no = 18 # No of cores
 
 
     # Make the output directory
@@ -170,8 +174,11 @@ def extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_
         subprocess.check_call("mkdir -p %s"%output_path,shell=True)
     except:
         log.info("Subdirectory already made")
+        try:
+            subprocess.check_call("rm *pfd* *.txt",shell=True,cwd=output_path)
+        except:
+            pass
         pass
-
    
     # Get group of filenames
     if len(dp_list)==1:            
@@ -183,38 +190,39 @@ def extract_fold_and_score(processing_args,processing_id,output_dir,xml_file,dp_
     extra = no_of_cands%batch_no
     batches = int(no_of_cands/batch_no) +1
     for x in range(batches):
-       start = x*batch_no
-       if(x==batches-1):
-           end = x*batch_no+extra
-       else:
-           end = (x+1)*batch_no   
-       for i in range(start,end):
-           folding_packet={}
-           folding_packet['period'] = mod_period[i]
-           folding_packet['acc'] = acc[i]
-           folding_packet['pdot'] = pdot[i] 
-           folding_packet['dm'] = dm[i] 
-           output_name= "dm_%.2f_acc_%.2f_candidate_number_%d"%(folding_packet['dm'],folding_packet['acc'],i)
-           try:
-               process = subprocess.Popen("prepfold -ncpus 1 -mask %s -noxwin -topo -p %s -pd %s -dm %s %s -o %s"%(mask_path,str(folding_packet['period']),str(folding_packet['pdot']),str(folding_packet['dm']),input_name,output_name),shell=True,cwd=output_path)
-           except Exception as error:
-               log.error(error)
+        start = x*batch_no
+        if(x==batches-1):
+            end = x*batch_no+extra
+        else:
+            end = (x+1)*batch_no   
+        for i in range(start,end):
+            folding_packet={}
+            folding_packet['period'] = mod_period[i]
+            folding_packet['acc'] = acc[i]
+            folding_packet['pdot'] = pdot[i] 
+            folding_packet['dm'] = dm[i] 
+            output_name= "dm_%.2f_acc_%.2f_candidate_number_%d"%(folding_packet['dm'],folding_packet['acc'],i)
+            try:
+                process = subprocess.Popen("prepfold -ncpus 1 -mask %s -noxwin -topo -p %s -pd %s -dm %s %s -o %s"%(mask_path,str(folding_packet['period']),str(folding_packet['pdot']),str(folding_packet['dm']),input_name,output_name),shell=True,cwd=output_path)
+            except Exception as error:
+                log.error(error)
  
-       if  process.communicate()[0]==None:
-           continue
-       else:
-           time.sleep(10)
+        if  process.communicate()[0]==None:
+            continue
+        else:
+            time.sleep(60)
 
-    log.info("Folding done for processing. Scoring all candidates...") 
-
-    tar_name = subprocess.getoutput("python2 webpage_score.py --in_path=%s"%output_path)
-    
-    log.info("Scoring done...")     
- 
-    # Remove original files 
-    subprocess.check_call("rm *pfd* *.txt",shell=True,cwd=output_path)
-
-    return os.path.basename(tar_name),output_path
+    while True:
+        if len(glob.glob('%s/*.pfd'%output_path)) == no_of_cands:
+            log.info("Folding done for all candidates. Scoring all candidates...") 
+            tar_name = subprocess.getoutput("python2 webpage_score.py --in_path=%s"%output_path)
+            log.info("Scoring done...")     
+            # Remove original files 
+            subprocess.check_call("rm *pfd* *.txt",shell=True,cwd=output_path)
+            return os.path.basename(tar_name),output_path
+        else:
+            log.info("Still not finished folding...")
+            time.sleep(60)     
 
                    
 if __name__ == '__main__':

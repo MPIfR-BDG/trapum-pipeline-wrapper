@@ -13,7 +13,7 @@ import os
 import math
 import numpy as np
 import time
-import json
+
 
 
 log = logging.getLogger('peasoup_search')
@@ -127,17 +127,18 @@ def peasoup_pipeline(data):
                 dp_list.append(dp["filename"])
  
             dp_list.sort()           
-            merged = 1
-            all_files = ' '.join(dp_list)   
-            merged_file = "%s/temp_merge_p_id_%d.fil"%(output_dir,processing_id) 
-            digifil_script = "digifil %s -b 8 -threads 15 -o %s"%(all_files,merged_file)
-            print(digifil_script)
-            time.sleep(2)
-            merge_filterbanks(digifil_script,merged_file)
-
-            #else:
-            #    merged = 0
-            #    merged_file = dp_list[0] 
+            if len(dp_list) > 1: 
+                # Merge filterbanks
+                merged = 1
+                all_files = ' '.join(dp_list)   
+                merged_file = "%s/temp_merge_p_id_%d.fil"%(output_dir,processing_id) 
+                digifil_script = "digifil %s -b 8 -threads 15 -o %s"%(all_files,merged_file)
+                print(digifil_script)
+                time.sleep(5)
+                merge_filterbanks(digifil_script,merged_file)
+            else:
+                merged = 0
+                merged_file = dp_list[0] 
                
  
             # Get header of merged file
@@ -146,16 +147,16 @@ def peasoup_pipeline(data):
             #IQR  
             processing_args['tsamp'] = float(filterbank_header['tsamp']) 
             processing_args['nchans'] = int(filterbank_header['nchans']) 
-            #if merged:  
-            iqred_file = iqr_filter(merged_file,processing_args,output_dir)
-            #else:
-            #    iqred_file = merged_file
+            if merged:  
+                iqred_file = iqr_filter(merged_file,processing_args,output_dir)
+            else:
+                iqred_file = merged_file
 
            
             # Determine fft_size
-            #if merged:  
-            fft_size = decide_fft_size(filterbank_header)
-            if fft_size > 134217728:
+            if merged:  
+                fft_size = decide_fft_size(filterbank_header)
+            else:
                 fft_size = 134217728 # Hard coded for max limit - tmp assuming 4hr, 76 us and 4k chans
 
             # Determine channel mask to use
@@ -168,59 +169,101 @@ def peasoup_pipeline(data):
 
             # DM split if needed  
             dm_list = processing_args['dm_list'].split(",")
-
            
+            dm_trial_lim = 1000
+            if len(dm_list) > dm_trial_lim:  
+                log.info("Searching in DM splits...")
 
-            log.info("Searching full DM range... ")
-            dm_list = processing_args['dm_list'].split(",")
-            dm_list_float = [round(float(dm), 3) for dm in dm_list]
-            dm_list_name = "p_id_%d_"%processing_id + "dm_%f_%f"%(dm_list_float[0],dm_list_float[-1]) 
-            np.savetxt(dm_list_name,dm_list_float,fmt='%.3f')
+                dm_segs = int(math.ceil(len(dm_list)/float(dm_trial_lim)))
+                for i in range(dm_segs):
+                    if i ==dm_segs -1:
+                        log.info("Final DM set")
+                        dm_list_split = [round(float(dm), 3) for dm in dm_list[i*dm_trial_lim:]]
+                        dm_list_name = "p_id_%d_"%processing_id + "dm_%f_%f"%(dm_list_split[0],dm_list_split[-1]) 
+                        np.savetxt(dm_list_name,dm_list_split,fmt='%.3f')
+
+                    else:
+                        log.info(" DM set number %d"%i)
+                        dm_list_split = [round(float(dm), 3) for dm in dm_list[i*dm_trial_lim:(i+1)*dm_trial_lim]]
+                        dm_list_name = "p_id_%d_"%processing_id + "dm_%f_%f"%(dm_list_split[0],dm_list_split[-1]) 
+                        np.savetxt(dm_list_name,dm_list_split,fmt='%.3f')
+                    output_dir = data['base_output_dir'] + '/' + os.path.basename(dm_list_name)
+                    log.info("Search begins... with the following command")
+                    peasoup_script = "peasoup -k %s -z trapum_latest.birdies  -i %s --dm_file %s --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s"%(chan_mask,iqred_file,dm_list_name,processing_args['candidate_limit'],int(processing_args['nharmonics']),processing_args['snr_threshold'],processing_args['start_accel'],processing_args['end_accel'],fft_size,output_dir)
+                    log.info(peasoup_script)
+                    call_peasoup(peasoup_script)
+                    
+                    # Remove unncessary files after searching
+                    cand_peasoup = output_dir+'/candidates.peasoup'
+                    tmp_files=[]
+                    tmp_files.append(cand_peasoup)
+                    tmp_files.append(dm_list_name)
+                    remove_temporary_files(tmp_files) 
             
              
-            if len(dm_list) > 1000:
-                peasoup_script = "peasoup -k %s -z trapum_latest.birdies  -i %s --dm_file %s --ndm_trial_gulp 1000 --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s"%(chan_mask,iqred_file,dm_list_name,processing_args['candidate_limit'],int(processing_args['nharmonics']),processing_args['snr_threshold'],processing_args['start_accel'],processing_args['end_accel'],fft_size,output_dir)
-                call_peasoup(peasoup_script)
+                    dp = dict(
+                         type="peasoup_xml",
+                         filename="overview.xml",
+                         directory=output_dir,
+                         beam_id = beam["id"],
+                         pointing_id = pointing["id"]
+                         )
+               
+                    output_dps.append(dp)
+
+
+                    # Update xml to MongoDB
+                    print os.environ['MONGO_USERNAME'] 
+                    client = MongoClient('mongodb://{}:{}@10.98.76.190:30003/'.format(os.environ['MONGO_USERNAME'].strip('\n'), os.environ['MONGO_PASSWORD'].strip('\n'))) # Add another secret for MongoDB
+                    doc = parker.data(lxml.etree.fromstring(open(output_dir+"/overview.xml", "rb").read()))
+                    client.trapum.peasoup_xml_files.update(doc, doc, True)
+
+                # Delete iqr file and merged file
+                if '/beegfs/DATA' not in iqred_file:  
+                    log.info("Deleting IQR file")
+                    subprocess.check_call("rm %s"%iqred_file,shell=True)                    
+                if merged:
+                    if '/beegfs/DATA' not in merged_file:
+                       log.info("Deleting merged file")
+                       subprocess.check_call("rm %s"%merged_file,shell=True) 
+
             else:
+                log.info("Searching full DM range... ")
+                dm_list = processing_args['dm_list'].split(",")
+                dm_list_float = [round(float(dm), 3) for dm in dm_list]
+                dm_list_name = "p_id_%d_"%processing_id + "dm_%f_%f"%(dm_list_float[0],dm_list_float[-1]) 
+                np.savetxt(dm_list_name,dm_list_float,fmt='%.3f')
+                
+                 
                 peasoup_script = "peasoup -k %s -z trapum_latest.birdies  -i %s --dm_file %s --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s"%(chan_mask,iqred_file,dm_list_name,processing_args['candidate_limit'],int(processing_args['nharmonics']),processing_args['snr_threshold'],processing_args['start_accel'],processing_args['end_accel'],fft_size,output_dir)
- 
                 call_peasoup(peasoup_script)
 
-
-            # Remove merged file after searching
-            cand_peasoup = data["base_output_dir"]+'/candidates.peasoup'
-            tmp_files=[]
-            if 'temp_merge' in merged_file:
-                tmp_files.append(merged_file)
+                # Remove merged file after searching
+                cand_peasoup = data["base_output_dir"]+'/candidates.peasoup'
+                tmp_files=[]
+                if merged:
+                    tmp_files.append(merged_file)
                 tmp_files.append(iqred_file)
-            tmp_files.append(cand_peasoup)
-            tmp_files.append(dm_list_name)
-            remove_temporary_files(tmp_files)
-
-            meta_info=dict(
-                            fftsize= fft_size,
-                            dmstart = dm_list[0],
-                            dmend = dm_list[-1],
-                            dmstep = float(dm_list[1]) - float(dm_list[0]),
-                            dmgulp = 1000 
-                           )  
+                tmp_files.append(cand_peasoup)
+                tmp_files.append(dm_list_name)
+                remove_temporary_files(tmp_files) 
             
-            dp = dict(
-                 type="peasoup_xml",
-                 filename="overview.xml",
-                 directory=data["base_output_dir"],
-                 beam_id = beam["id"],
-                 pointing_id = pointing["id"],
-                 metainfo=json.dumps(meta_info)
-                 )
-            
-            output_dps.append(dp)
+             
+                dp = dict(
+                     type="peasoup_xml",
+                     filename="overview.xml",
+                     directory=data["base_output_dir"],
+                     beam_id = beam["id"],
+                     pointing_id = pointing["id"]
+                     )
+               
+                output_dps.append(dp)
 
 
-            # Update xml to MongoDB 
-            client = MongoClient('mongodb://{}:{}@10.98.76.190:30003/'.format(os.environ['MONGO_USERNAME'].strip('\n'), os.environ['MONGO_PASSWORD'].strip('\n'))) # Add another secret for MongoDB
-            doc = parker.data(lxml.etree.fromstring(open(data["base_output_dir"]+"/overview.xml", "rb").read()))
-            client.trapum.peasoup_xml_files.update(doc, doc, True)
+                # Update xml to MongoDB 
+                client = MongoClient('mongodb://{}:{}@10.98.76.190:30003/'.format(os.environ['MONGO_USERNAME'].strip('\n'), os.environ['MONGO_PASSWORD'].strip('\n'))) # Add another secret for MongoDB
+                doc = parker.data(lxml.etree.fromstring(open(data["base_output_dir"]+"/overview.xml", "rb").read()))
+                client.trapum.peasoup_xml_files.update(doc, doc, True)
 
     return output_dps
 

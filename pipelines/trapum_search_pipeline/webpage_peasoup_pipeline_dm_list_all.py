@@ -118,6 +118,14 @@ def peasoup_pipeline(data):
     except:
         log.info("Already made subdirectory")
         pass
+
+    # To avoid core dump related interruptions
+    try:
+        process = subprocess.Popen(["ulimit", "-c", "0"])
+    except Exception as error:
+        log.error("ulimit execution failed")
+        log.error(error) 
+
     processing_id = data['processing_id']
 
     for pointing in data["data"]["pointings"]:
@@ -203,7 +211,7 @@ def peasoup_pipeline(data):
                             dmstart = dm_list[0],
                             dmend = dm_list[-1],
                             dmstep = float(dm_list[1]) - float(dm_list[0]),
-                            dmgulp = 1000 
+                            dmgulp = gulp_limit 
                            )  
             
             dp = dict(

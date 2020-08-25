@@ -121,7 +121,7 @@ def peasoup_pipeline(data):
 
     # To avoid core dump related interruptions
     try:
-        process = subprocess.Popen(["ulimit", "-c", "0"])
+        subprocess.check_call("ulimit -c  0",shell=True)
     except Exception as error:
         log.error("ulimit execution failed")
         log.error(error) 

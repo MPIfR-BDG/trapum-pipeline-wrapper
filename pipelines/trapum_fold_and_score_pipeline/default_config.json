@@ -1,0 +1,8 @@
+{
+    "max_distance_broadened_period" : 1,
+    "max_distance_period" : 100,
+    "max_distance_dm" : 5,
+    "min_size_cluster_for_fit" : 6,
+    "min_spatial_decay" : 0.005,
+    "min_total_nassoc" : 3
+}

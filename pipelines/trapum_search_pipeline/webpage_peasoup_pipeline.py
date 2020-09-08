@@ -9,7 +9,7 @@ import parseheader
 import lxml
 from pymongo import MongoClient
 from xmljson import parker
-
+import os
 
 
 
@@ -109,18 +109,25 @@ def peasoup_pipeline(data):
             for dp in  (beam["data_products"]):
                 dp_list.append(dp["filename"])
  
-            
-            # Merge filterbanks
-            all_files = ' '.join(dp_list)   
-            merged_file = "temp_merge_p_id_%d.fil"%(processing_id) 
-            digifil_script = "digifil %s -b 8 -threads 15 -o %s"%(all_files,merged_file)
-            merge_filterbanks(digifil_script,merged_file)
+           
+            if len(dp_list) > 1: 
+                # Merge filterbanks
+                merged = 1
+                all_files = ' '.join(dp_list)   
+                merged_file = "%s/temp_merge_p_id_%d.fil"%(output_dir,processing_id) 
+                digifil_script = "digifil %s -b 8 -threads 15 -o %s"%(all_files,merged_file)
+                merge_filterbanks(digifil_script,merged_file)
+            else:
+                merged = 0
+                merged_file = dp_list[0]  
 
             # Get header of merged file
             filterbank_header = get_fil_dict(merged_file)       
 
             # Determine fft_size
             fft_size = decide_fft_size(filterbank_header)
+
+
 
             # Run peasoup
             peasoup_script = "peasoup -k Ter5_16apr_rfifind.badchan_peasoup -z trapum_latest.birdies  -i %s --dm_start %.2f --dm_end %.2f --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s"%(merged_file,processing_args['min_dm'],processing_args['max_dm'],processing_args['candidate_limit'],int(processing_args['nharmonics']),processing_args['snr_threshold'],processing_args['start_accel'],processing_args['end_accel'],fft_size,output_dir)
@@ -129,7 +136,8 @@ def peasoup_pipeline(data):
             # Remove merged file after searching
             cand_peasoup = data["base_output_dir"]+'/candidates.peasoup'
             tmp_files=[]
-            tmp_files.append(merged_file)
+            if merged:
+                tmp_files.append(merged_file)
             tmp_files.append(cand_peasoup)
             remove_temporary_files(tmp_files) 
             
@@ -146,7 +154,7 @@ def peasoup_pipeline(data):
 
 
             # Update xml to MongoDB 
-            client = MongoClient('mongodb://{}:{}@10.98.76.190:30003/'.format("admin", "admin")) # Add another secret for MongoDB
+            client = MongoClient('mongodb://{}:{}@10.98.76.190:30003/'.format(os.environ['MONGO_USERNAME'], os.environ['MONGO_PASSWORD'])) # Add another secret for MongoDB
             doc = parker.data(lxml.etree.fromstring(open(data["base_output_dir"]+"/overview.xml", "rb").read()))
             client.trapum.peasoup_xml_files.update(doc, doc, True)
 

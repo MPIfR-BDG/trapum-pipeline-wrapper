@@ -11,14 +11,14 @@ import logging
 import sys
 import pika_wrapper
 from trapum_pipeline_wrapper import TrapumPipelineWrapper
-
+import time
+import tarfile
+import json
+import shutil
 
 log = logging.getLogger('manual_presto_fold')
 FORMAT = "[%(levelname)s - %(asctime)s - %(filename)s:%(lineno)s] %(message)s"
 logging.basicConfig(format=FORMAT)
-
-
-
 log.setLevel('INFO')
 
 #parser.add_option('--p_tol',type=float,help='period tolerance',dest="p_tol",default=5e-4)
@@ -29,6 +29,10 @@ def make_tarfile(output_path,input_path,name):
         tar.add(input_path, arcname= name)
 
 
+def remove_dir(dir_name):
+    shutil.rmtree(dir_name)
+
+
 def candidate_filter_pipeline(data):
     output_dps = []
     dp_list=[]
@@ -36,6 +40,8 @@ def candidate_filter_pipeline(data):
     '''
     required from pipeline: Filetype, filename, beam id , pointing id, directory
     '''
+    
+
     processing_args = data['processing_args']
     output_dir = data['base_output_dir']
     #Make output dir
@@ -49,14 +55,13 @@ def candidate_filter_pipeline(data):
    # Get an xml list per pointing
     for pointing in data["data"]["pointings"]:
        xml_list=[]
-       #beam_id_list=[]  
+       beam_id_list=[]  
        for beam in pointing["beams"]:
            for dp in  (beam["data_products"]):
                xml_list.append(dp["filename"])
+               beam_id_list.append(dp["id"]) 
+               
 
-           
-    # Get an xml list
-    #xml_list = data['xml_list'] # !! Get an xml list 
    
        # Make temporary folder to keep any temporary outputs
        tmp_dir = '/beeond/PROCESSING/TEMP/%d'%processing_id
@@ -65,38 +70,45 @@ def candidate_filter_pipeline(data):
        except:
            log.info("Already made subdirectory")
            pass
+
     
-  
+         
        # Run the candidate filtering code
        try:
-          subprocess.check_call("candidate_filter.py -i %s -o %s/%d -c /home/psr/candidate_filter/candidate_filter/default_config.json --rfi /home/psr/candidate_filter/candidate_filter/known_rfi.txt"%(xml_list,output_dir,processing_id))
+          xml_list2 = ','.join(xml_list)
+          subprocess.check_call("candidate_filter.py -i %s -o %s/%d -c /home/psr/software/candidate_filter/candidate_filter/default_config.json --rfi /home/psr/software/candidate_filter/candidate_filter/known_rfi.txt --p_tol %f --dm_tol %f"%(xml_list2,tmp_dir,processing_id,processing_args['p_tol'],processing_args['dm_tol']),shell=True)
        except Exception as error:
           log.error(error)
 
 
        # insert beam ID in good cands to fold csv file for later reference
-       df = pd.read_csv('%s/%d_good_cands_to_fold.csv')
+       df = pd.read_csv('%s/%d_good_cands_to_fold.csv'%(tmp_dir,processing_id))
        all_xml_files = df['file'].values
-    
+
+   
+       beam_id_values = []
+ 
        for i in range(len(all_xml_files)):
            ind = xml_list.index(all_xml_files[i])
            beam_id_values.append(beam_id_list[ind])
 
-       df['beam_id'] = beam_id_values
-       df.to_csv('%s/%d_good_cands_to_fold_with_beam.csv'%(output_path,proceessing_id))
+       df['beam_id'] = np.asarray(beam_id_values)
+       df.to_csv('%s/%d_good_cands_to_fold_with_beam.csv'%(tmp_dir,processing_id))
     
           
        # Tar up the csv files
-       tar_name = os.path.basename(output_path)+"_csv_files.tar.gz"
-       make_tarfile(output_path,output_path,tar_name)    
+       tar_name = os.path.basename(output_dir)+"_csv_files.tar.gz"
+       make_tarfile(output_dir,tmp_dir,tar_name)    
 
+       # Remove contents in temporary directory
+       remove_dir(tmp_dir)  
 
        # Add tar file to dataproduct
        dp = dict(
                  type="candidate_tar_file",
                  filename=tar_name,
-                 directory=output_path,
-                 beam_id=beam["id"],
+                 directory=output_dir,
+                 beam_id=beam_id_list[0], # Note: This is just for convenience. Technically needs all beam ids 
                  pointing_id=pointing["id"],
                  metainfo=json.dumps("tar_file:filtered_csvs")
                  ) 

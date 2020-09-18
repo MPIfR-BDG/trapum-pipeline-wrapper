@@ -86,11 +86,16 @@ def candidate_filter_pipeline(data):
           log.error(error)
 
 
-       # insert beam ID in good cands to fold csv file for later reference
+       # Apply SNR cut and insert beam ID in good cands to fold csv file for later reference
+
+       df = pd.read_csv('%s/%d_good_cands_to_fold.csv'%(tmp_dir,processing_id))
+     
+       df_snr_cut = df[df['snr']>9.5]
+       log.info("Applied SNR cut of 9.5")
+
 
        log.info("Adding beam id column to folding csv file")
-       df = pd.read_csv('%s/%d_good_cands_to_fold.csv'%(tmp_dir,processing_id))
-       all_xml_files = df['file'].values
+       all_xml_files = df_snr_cut['file'].values
 
    
        beam_id_values = []
@@ -99,8 +104,12 @@ def candidate_filter_pipeline(data):
            ind = xml_list.index(all_xml_files[i])
            beam_id_values.append(beam_id_list[ind])
 
-       df['beam_id'] = np.asarray(beam_id_values)
-       df.to_csv('%s/%d_good_cands_to_fold_with_beam.csv'%(tmp_dir,processing_id))
+       df_snr_cut['beam_id'] = np.asarray(beam_id_values)
+
+
+
+
+       df_snr_cut.to_csv('%s/%d_good_cands_to_fold_with_beam.csv'%(tmp_dir,processing_id))
        log.info("New beam id column added to folding csv file")
     
           

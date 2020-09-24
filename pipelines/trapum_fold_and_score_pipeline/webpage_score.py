@@ -45,9 +45,9 @@ def extract_and_score(opts):
     log.info("Written to file in %s"%opts.in_path)
     fout.close()
 
-    tar_name = os.path.basename(opts.in_path)+"_presto_cands.tar.gz"
-    make_tarfile(opts.in_path,opts.in_path,tar_name)
-    print tar_name
+    #tar_name = os.path.basename(opts.in_path)+"_presto_cands.tar.gz"
+    #make_tarfile(opts.in_path,opts.in_path,tar_name)
+    #print tar_name
 
 if __name__ == '__main__':
 

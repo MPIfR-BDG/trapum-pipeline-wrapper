@@ -46,6 +46,10 @@ def make_tarfile(output_path,input_path,name):
         tar.add(input_path, arcname= name)
 
 def fold_and_score_pipeline(data):
+    with open('sample_message.txt','a') as f:
+        f.write(data)
+    f.close()
+
     output_dps = []
     dp_list=[]
 

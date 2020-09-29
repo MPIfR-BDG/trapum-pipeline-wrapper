@@ -100,10 +100,23 @@ def update_telescope_id(input_file):
         log.error(error)
 
 
+def slices(csv):
+    for value in csv.split(","):
+        if ":" not in value:
+            yield float(value)
+        else:
+            x = value.split(":")
+            start = float(x[0])
+            end = float(x[1])
+            if len(x) > 2:
+                step = float(x[2])
+            else:
+                step = 1
+            for subvalue in np.arange(start, end, step):
+                yield subvalue
+
+
 def peasoup_pipeline(data):
-    f = open('sample_message.txt','w')
-    f.write(str(data))
-    f.close() 
     
     output_dps = []
 
@@ -143,9 +156,6 @@ def peasoup_pipeline(data):
             time.sleep(2)
             merge_filterbanks(digifil_script,merged_file)
 
-            #else:
-            #    merged = 0
-            #    merged_file = dp_list[0] 
                
  
             # Get header of merged file
@@ -154,36 +164,35 @@ def peasoup_pipeline(data):
             #IQR  
             processing_args['tsamp'] = float(filterbank_header['tsamp']) 
             processing_args['nchans'] = int(filterbank_header['nchans']) 
-            #if merged:  
             iqred_file = iqr_filter(merged_file,processing_args,output_dir)
-            #else:
-            #    iqred_file = merged_file
 
            
             # Determine fft_size
-            #if merged:  
             fft_size = decide_fft_size(filterbank_header)
             if fft_size > 134217728:
                 fft_size = 134217728 # Hard coded for max limit - tmp assuming 4hr, 76 us and 4k chans
 
             # Determine channel mask to use
             if processing_args['nchans'] == 4096:
-                chan_mask = "Ter5_4096chans_mask_rfifind.badchan_peasoup"
+                chan_mask = "4096_chan_mask_for_peasoup"
             else:
-                chan_mask = "256_chan_mask_rfifind.badchan_peasoup" 
+                chan_mask = "256_chan_mask_for_peasoup" 
              
 
 
             # DM split if needed  
-            dm_list = processing_args['dm_list'].split(",")
 
-           
+            #dm_list = processing_args['dm_list'].split(",")  ## Old style
+            #log.info("Searching full DM range... ")
+            #dm_list = processing_args['dm_list'].split(",")
+            #dm_list_float = [round(float(dm), 3) for dm in dm_list]
+              
+            dm_csv = processing_args['dm_list'] 
+            dm_list = sorted(list(set(list(slices(dm_csv)))))   
+            
 
-            log.info("Searching full DM range... ")
-            dm_list = processing_args['dm_list'].split(",")
-            dm_list_float = [round(float(dm), 3) for dm in dm_list]
-            dm_list_name = "p_id_%d_"%processing_id + "dm_%f_%f"%(dm_list_float[0],dm_list_float[-1]) 
-            np.savetxt(dm_list_name,dm_list_float,fmt='%.3f')
+            dm_list_name = "p_id_%d_"%processing_id + "dm_%f_%f"%(dm_list[0],dm_list[-1]) 
+            np.savetxt(dm_list_name,dm_list,fmt='%.3f')
             
             gulp_limit = 300  
              
@@ -210,7 +219,7 @@ def peasoup_pipeline(data):
                             fftsize= fft_size,
                             dmstart = dm_list[0],
                             dmend = dm_list[-1],
-                            dmstep = float(dm_list[1]) - float(dm_list[0]),
+                            dmstep = dm_csv,
                             dmgulp = gulp_limit 
                            )  
             

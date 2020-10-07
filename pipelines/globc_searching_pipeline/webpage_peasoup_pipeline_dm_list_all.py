@@ -52,6 +52,8 @@ def iqr_filter(merged_file,processing_args,output_dir): # add tsamp,nchans to pr
          
 
 def call_peasoup(peasoup_script):
+    log.info("Script that will run")
+    log.info(peasoup_script)
     log.info('Starting peasoup search..') 
     try:
         subprocess.check_call(peasoup_script,shell=True)
@@ -169,10 +171,13 @@ def peasoup_pipeline(data):
             # Get header of merged file
             filterbank_header = get_fil_dict(merged_file)       
 
-            #IQR  
+            #Skip IQR if its already done before . e.g. during subbanding  
             processing_args['tsamp'] = float(filterbank_header['tsamp']) 
             processing_args['nchans'] = int(filterbank_header['nchans']) 
-            iqred_file = iqr_filter(merged_file,processing_args,output_dir)
+            if 'iqrm' in merged_file:    
+                iqred_file = merged_file
+            else:          
+                iqred_file = iqr_filter(merged_file,processing_args,output_dir)
 
            
             # Determine fft_size
@@ -183,9 +188,10 @@ def peasoup_pipeline(data):
             # Determine channel mask to use
             if processing_args['nchans'] == 4096:
                 chan_mask = "4096_chan_mask_for_peasoup"
-            else:
+            elif processing_args['nchans'] == 256:
                 chan_mask = "256_chan_mask_for_peasoup" 
-             
+            else:
+                raise Exception("Channel mask unavailable for %d channels"%processing_args['nchans'])
 
 
             # DM split if needed  
@@ -202,7 +208,7 @@ def peasoup_pipeline(data):
             dm_list_name = "p_id_%d_"%processing_id + "dm_%f_%f"%(dm_list[0],dm_list[-1]) 
             np.savetxt(dm_list_name,dm_list,fmt='%.3f')
             
-            gulp_limit = 300  
+            gulp_limit = 20  
              
             if len(dm_list) > gulp_limit:
                 peasoup_script = "peasoup -k %s -z trapum_latest.birdies  -i %s --dm_file %s --ndm_trial_gulp %d --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s"%(chan_mask,iqred_file,dm_list_name,gulp_limit,processing_args['candidate_limit'],int(processing_args['nharmonics']),processing_args['snr_threshold'],processing_args['start_accel'],processing_args['end_accel'],fft_size,output_dir)

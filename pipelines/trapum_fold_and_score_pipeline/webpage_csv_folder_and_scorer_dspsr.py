@@ -3,6 +3,7 @@ import sys
 import time
 import json
 import glob
+import shlex
 import shutil
 import tarfile
 import optparse
@@ -23,8 +24,7 @@ FORMAT = "[%(levelname)s - %(asctime)s - %(filename)s:%(lineno)s] %(message)s"
 logging.basicConfig(format=FORMAT)
 log.setLevel('INFO')
 
-AI_PATH = '/'.join(ubc_AI.__file__.split('/')[:-1]) + '/trained_AI/'
-MODELS = ["clfl2_trapum_Ter5.pkl", "clfl2_PALFA.pkl"]
+#MODELS = ["clfl2_trapum_Ter5.pkl", "clfl2_PALFA.pkl"]
 
 
 
@@ -63,17 +63,37 @@ def execute_command(command,output_dir):
 
 
 
-def generate_dspsr_cand_file(tmp_dir, beam_name, cand_mod_periods, cand_dms, cand_accs, ra_coord, dec_coord)
+def generate_dspsr_cand_file(tmp_dir, beam_name, utc_name, cand_mod_periods, cand_dms, cand_accs, cand_ids, ra_coord, dec_coord):
 
-    # Write a header 
     cand_file_path = '%s/%s_cands.txt'%(tmp_dir,beam_name)
+    source_name_prefix = "%s_%s"%(beam_name,utc_name)
     with open(cand_file_path,'a') as f:
         f.write("SOURCE RA DEC PERIOD DM ACC\n")
-        for i range(len(cand_mod_periods)):
-            f.write("%s %s %s %f %f %f\n"%(beam_name, ra_coord,dec_coord,cand_mod_periods[i],cand_dms[i],cand_accs[i])) 
+        for i in range(len(cand_mod_periods)):
+            f.write("%s_candidate_no_%d_dm_%.2f_acc_%.2f_p_%.2f_ms %s %s %f %f %f\n"%(source_name_prefix, cand_ids[i],  ra_coord,dec_coord,cand_mod_periods[i],cand_dms[i],cand_accs[i])) 
         f.close()
 
     return cand_file_path
+
+
+def parse_pdmp_stdout(stream):
+    for line in stream.splitlines():
+        if line.startswith("Best DM"):
+            dm = float(line.split()[3])
+            break
+    else:
+        raise Exception("no best DM")
+    for line in stream.splitlines():
+        if line.startswith("Best TC Period"):
+            tc = float(line.split()[5])
+            break
+    else:
+        raise Exception("no best TC period")
+    return tc, dm
+
+
+
+
 
 
 def convert_to_std_format(ra, dec):
@@ -93,35 +113,6 @@ def convert_to_std_format(ra, dec):
     dec_coord = "{}:{}:{:.2f}".format(dec_deg, abs(dec_min), abs(dec_sec))
 
     return ra_coord,dec_coord
-
-
-def extract_and_score(path, models):
-    # Load model
-    classifiers = []
-    for model in models:
-        with open(os.path.join(AI_PATH, model), "rb") as f:
-            classifiers.append(cPickle.load(f))
-            log.info("Loaded model {}".format(model))
-    # Find all files
-    arfiles = glob.glob("{}/*.ar.clfd".format(path))
-    log.info("Retrieved {} archive files from {}".format(
-        len(arfiles), path))
-    scores = []
-    readers = [pfdreader(f) for f in arfiles]
-    for classifier in classifiers:
-        scores.append(classifier.report_score(readers))
-    log.info("Scored with all models")
-    combined = sorted(zip(arfiles, *scores), reverse=True, key=lambda x: x[1])
-    log.info("Sorted scores...")
-    names = "\t".join(["#{}".format(model.split("/")[-1]) for model in models])
-    with open("{}/pics_scores.txt".format(path)) as fout:
-        fout.write("#arfile\t{}\n".format(names))
-        for row in combined:
-            scores = ",".join(row[1:])
-            fout.write("{},{}\n".format(row[0], scores))
-    log.info("Written to file in {}".format(path))
-
-
 
 def fold_and_score_pipeline(data):
     '''
@@ -170,30 +161,49 @@ def fold_and_score_pipeline(data):
            input_filenames = ' '.join(input_fil_list) 
           
            # Untar csv file
+           log.info("Untarring the filtered candidate information to %s"%tmp_dir)  
            untar_file(tarred_csv,tmp_dir)
            tmp_dir = tmp_dir + '/' + os.path.basename(tarred_csv)
 
            #Read candidate info file into Pandas Dataframe
+           log.info("Reading candidate info...") 
            cand_file = glob.glob('%s/*good_cands_to_fold_with_beam.csv'%(tmp_dir))[0]
            df = pd.read_csv(cand_file) 
 
 
            # Select only candidates with corresponding beam id and snr cutoff
-           print (beam_ID,processing_args['snr_cutoff'])
+           log.info("Selecting candidates for  beam ID %d and SNR higher than %f"%(beam_ID, processing_args['snr_cutoff']))  
            snr_cut_cands = df[df['snr'] > float(processing_args['snr_cutoff'])]
            single_beam_cands = snr_cut_cands[snr_cut_cands['beam_id']==beam_ID]
            single_beam_cands.sort_values('snr', inplace=True, ascending=False)  
           
 
+           # If no candidates found in this beam, skip to next message
+           if single_beam_cands.shape[0] == 0:
+               log.info("No candidates found for this beam. Skipping to next message") # Something better ? 
+               dp = dict(
+                    type="no_candidate_statement",
+                    filename="invalid",
+                    directory="invalid",
+                    beam_id=beam_ID,
+                    pointing_id=pointing["id"],
+                    metainfo=json.dumps("no_candidate_for_beam")
+                    )
+          
+               output_dps.append(dp)
+               return output_dps
+ 
            #Limit number of candidates to fold
+           log.info("Setting a maximum limit of %d candidates per beam"%(processing_args['cand_limit_per_beam'])) 
            if single_beam_cands.shape[0] > processing_args['cand_limit_per_beam']:
                single_beam_cands_fold_limited = single_beam_cands.head(processing_args['cand_limit_per_beam'])
            else:
                single_beam_cands_fold_limited = single_beam_cands       
             
 
-
+ 
            # Read parameters and fold
+           log.info("Reading all necessary candidate parameters") 
            cand_periods = single_beam_cands_fold_limited['period'].to_numpy()
            cand_accs = single_beam_cands_fold_limited['acc'].to_numpy()
            cand_dms = single_beam_cands_fold_limited['dm'].to_numpy()
@@ -201,18 +211,17 @@ def fold_and_score_pipeline(data):
            xml_files = single_beam_cands_fold_limited['file'].to_numpy() # Choose first element. If filtered right, there should be just one xml filename throughout!
 
            tree = ET.parse(xml_files[0])
-           root = tree.getroot()
-  
+           root = tree.getroot() 
            tsamp = float(root.find("header_parameters/tsamp").text)
            fft_size = float(root.find('search_parameters/size').text)
            no_of_samples = int(root.find("header_parameters/nsamples").text)
-
            ra = float(root.find("header_parameters/src_raj").text)
            dec =  float(root.find("header_parameters/src_dej").text)
 
-
            ra_coord,dec_coord = convert_to_std_format(ra,dec)
-           
+
+           log.info("Modifying period to starting epoch reference")
+               
            mod_periods=[]
            pdots= []
            for i in range(len(cand_periods)):
@@ -223,29 +232,63 @@ def fold_and_score_pipeline(data):
            cand_mod_periods = np.asarray(mod_periods,dtype=float)
              
 
+           log.info("Generating predictor file for DSPSR")
            # Generate a candidate file to parse for DSPSR in -w format
-           cand_file = generate_dspsr_cand_file(tmp_dir, beam_name, cand_mod_periods, cand_dms, cand_accs, ra_coord, dec_coord)
+           try:
+               pred_w_file = generate_dspsr_cand_file(tmp_dir, beam_name, utc_name, cand_mod_periods, cand_dms, cand_accs, cand_ids, ra_coord, dec_coord)
+               log.info("Predictor file ready for folding: %s"%(pred_w_file))
+           except Exception as error:
+               log.error(error)
+               log.error("Predictor candidate file generation failed")   
            
 
            # Run DSPSR
-           subprocess.check_call("dspsr %s -cpus 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19 -k meerkat -t 12 -U 256 -L 20 -Lmin 15 -w %s -O sample"%(input_filenames,cand_file),shell=True,cwd=tmp_dir)
+           log.info("DSPSR will be launched with the following command:")
+           try:
+               script = "dspsr %s -cpu 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19 -k meerkat -t 12 -U 256 -L 20 -Lmin 15 -w %s"%(input_filenames, pred_w_file) 
+               log.info(dspsr_script)
+               subprocess.check_call(dspsr_script,shell=True,cwd=tmp_dir)
+               log.info("DSPSR folding successful")
+
+           except Exception as error:
+               log.error(error)
+               log.error("DSPSR failed")   
+                  
 
            # Run clfd
- 
-           subprocess.check_call("clfd --no-report *.ar",shell=True,cwd=tmp_dir)
-           subprocess.check_call("rm *.ar",shell=True,cwd=tmp_dir) # Remove original archives ?
+              
+           log.info("CLFD will be run to clean the archives")
+
+           try:
+               subprocess.check_call("clfd --no-report *.ar",shell=True,cwd=tmp_dir)
+               log.info("CLFD run was successful")    
+           except Exception as error:
+               log.error(error)
+               log.error("CLFD failed")   
           
 
            # Run pdmp
-           for clfd_ar in glob.glob("*.ar.clfd"):
-               subprocess.check_call("pdmp -mc 32 -ms 32 -g %s.png/png --no-report %s"%(clfd_ar,clfd_ar),shell=True,cwd=tmp_dir)
+           log.info("Optimise candidates with PDMP") 
+           wd = os.getcwd()
+           os.chdir(tmp_dir)    
+           try: 
+               for clfd_ar in glob.glob("*.ar.clfd"):
+                   tc, dm = parse_pdmp_stdout(subprocess.check_output(shlex.split("pdmp -mc 32 -ms 32 -g {}.png/png {}".format(clfd_ar, clfd_ar))))
+                   os.system("pam --period {} -d {} -m {}".format(str(tc/1000.0), dm, clfd_ar))
+               log.info("PDMP run complete")    
+
+           except Exception as error:
+               log.error(error)  
 
             
+           os.chdir(wd)    
            log.info("Folding done for all candidates. Scoring all candidates...")
-           score_ar_files()
-
            subprocess.check_call("python2 webpage_score.py --in_path=%s"%tmp_dir,shell=True)
            log.info("Scoring done...")
+
+           log.info("Deleting CLFD archives...")
+           subprocess.check_call("rm *.ar.clfd",shell=True,cwd=tmp_dir) 
+           log.info("Done")
 
            #Create tar file of tmp directory in output directory 
            subprocess.check_call("rm *.csv",shell=True,cwd=tmp_dir) # Remove the csv files

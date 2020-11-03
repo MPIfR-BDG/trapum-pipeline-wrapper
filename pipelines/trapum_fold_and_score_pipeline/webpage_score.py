@@ -15,13 +15,45 @@ FORMAT = "[%(levelname)s - %(asctime)s - %(filename)s:%(lineno)s] %(message)s"
 logging.basicConfig(format=FORMAT)
 
 AI_PATH = '/'.join(ubc_AI.__file__.split('/')[:-1])
+models = ["clfl2_trapum_Ter5.pkl", "clfl2_PALFA.pkl"]
+
 
 def make_tarfile(output_path,input_path,name):
     with tarfile.open(output_path+'/'+name, "w:gz") as tar:
         tar.add(input_path, arcname= name)
 
 
-def extract_and_score(opts):
+
+def extract_and_score(path):
+    # Load model
+    classifiers = []
+    for model in models:
+        with open(os.path.join(AI_PATH, model), "rb") as f:
+            classifiers.append(cPickle.load(f))
+            log.info("Loaded model {}".format(model))
+    # Find all files
+    arfiles = glob.glob("{}/*.ar.clfd".format(path))
+    log.info("Retrieved {} archive files from {}".format(
+        len(arfiles), path))
+    scores = []
+    readers = [pfdreader(f) for f in arfiles]
+    for classifier in classifiers:
+        scores.append(classifier.report_score(readers))
+    log.info("Scored with all models")
+    combined = sorted(zip(arfiles, *scores), reverse=True, key=lambda x: x[1])
+    log.info("Sorted scores...")
+    names = "\t".join(["#{}".format(model.split("/")[-1]) for model in models])
+    with open("{}/pics_scores.txt".format(path)) as fout:
+        fout.write("#arfile\t{}\n".format(names))
+        for row in combined:
+            scores = ",".join(row[1:])
+            fout.write("{},{}\n".format(row[0], scores))
+    log.info("Written to file in {}".format(path))
+
+
+
+
+def extract_and_score_old(opts):
     # Load model
     classifier = cPickle.load(open(AI_PATH+'/trained_AI/clfl2_PALFA.pkl','rb'))
     log.info("Loaded model")

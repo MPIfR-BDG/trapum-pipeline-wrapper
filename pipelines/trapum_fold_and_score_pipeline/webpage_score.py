@@ -25,7 +25,9 @@ def make_tarfile(output_path,input_path,name):
 
 
 
-def extract_and_score(path):
+def extract_and_score(opts):
+    path = opts.in_path
+    file_type = opts.file_type
     # Load model
     classifiers = []
     for model in models:
@@ -33,7 +35,7 @@ def extract_and_score(path):
             classifiers.append(cPickle.load(f))
             log.info("Loaded model {}".format(model))
     # Find all files
-    arfiles = glob.glob("{}/*.ar.clfd".format(path))
+    arfiles = glob.glob("{}/*.{}".format(path,file_type))
     log.info("Retrieved {} archive files from {}".format(
         len(arfiles), path))
     scores = []
@@ -86,6 +88,7 @@ if __name__ == '__main__':
 
     parser = optparse.OptionParser()
     parser.add_option('--in_path',type=str,help='input path for files to be scored',dest="in_path")
+    parser.add_option('--file_type',type=str,help='Type of file (ar/pfd/ar2/clfd)',dest="file_type",default="ar")
     opts,args = parser.parse_args()
     extract_and_score(opts)
 

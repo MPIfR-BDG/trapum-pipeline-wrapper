@@ -24,7 +24,6 @@ FORMAT = "[%(levelname)s - %(asctime)s - %(filename)s:%(lineno)s] %(message)s"
 logging.basicConfig(format=FORMAT)
 log.setLevel('INFO')
 
-#MODELS = ["clfl2_trapum_Ter5.pkl", "clfl2_PALFA.pkl"]
 
 
 
@@ -66,9 +65,9 @@ def execute_command(command,output_dir):
 
 
 
-def generate_pulsarX_cand_file(tmp_dir, cand_mod_periods, cand_dms, cand_accs, cand_snrs):
+def generate_pulsarX_cand_file(tmp_dir, beam_name, utc_name, cand_mod_periods, cand_dms, cand_accs, cand_snrs):
 
-    cand_file_path = '%s/%s_cands.txt'%(tmp_dir,beam_name)
+    cand_file_path = '%s/%s_%s_cands.txt'%(tmp_dir, beam_name, utc_name)
     source_name_prefix = "%s_%s"%(beam_name,utc_name)
     with open(cand_file_path,'a') as f:
         f.write("#id DM accel F0 F1 S/N\n")
@@ -84,18 +83,15 @@ def parse_pdmp_stdout(stream):
         if line.startswith("Best DM"):
             dm = float(line.split()[3])
             break
-    else:
-        raise Exception("no best DM")
+        else:
+            raise Exception("no best DM")
     for line in stream.splitlines():
         if line.startswith("Best TC Period"):
             tc = float(line.split()[5])
             break
-    else:
-        raise Exception("no best TC period")
+        else:
+            raise Exception("no best TC period")
     return tc, dm
-
-
-
 
 
 
@@ -139,7 +135,7 @@ def fold_and_score_pipeline(data):
 
 
     # Make temporary folder to keep any temporary outputs
-    tmp_dir = '/beeond/PROCESSING/TEMP/%d'%processing_id
+    tmp_dir = '/beegfs/u/prajwalvp/TEMP/%d'%processing_id
     try:
         subprocess.check_call("mkdir -p %s"%(tmp_dir),shell=True)
     except:
@@ -241,7 +237,7 @@ def fold_and_score_pipeline(data):
 
            log.info("Generating predictor file for PulsarX")
            try:
-               pred_file = generate_pulsarX_cand_file(tmp_dir,cand_mod_periods, cand_dms, cand_accs, cand_snrs)
+               pred_file = generate_pulsarX_cand_file(tmp_dir, beam_name, utc_start, cand_mod_periods, cand_dms, cand_accs, cand_snrs)
                log.info("Predictor file ready for folding: %s"%(pred_file))
            except Exception as error:
                log.error(error)
@@ -252,7 +248,7 @@ def fold_and_score_pipeline(data):
            log.info("PulsarX will be launched with the following command:")
            
            try:
-               if 'ifbf' in beam_name # Decide beam name in output
+               if 'ifbf' in beam_name: # Decide beam name in output
                    script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 64 --incoherent --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 -f %s"%(pred_file, input_filenames) 
                    log.info(script)
                    subprocess.check_call(script,shell=True,cwd=tmp_dir)
@@ -277,45 +273,48 @@ def fold_and_score_pipeline(data):
                log.error(error)
                log.error("PulsarX failed")   
                   
-
-           # Run clfd              
-           log.info("CLFD will be run to clean the archives")
-           try:
-               subprocess.check_call("clfd --no-report *.ar",shell=True,cwd=tmp_dir)
-               log.info("CLFD run was successful")    
-           except Exception as error:
-               log.error(error)
-               log.error("CLFD failed")   
-          
-
-           # Run pdmp -- Optional
-           log.info("Optimise candidates with PDMP") 
-           wd = os.getcwd()
-           os.chdir(tmp_dir)    
-           try: 
-               for clfd_ar in glob.glob("*.ar.clfd"):
-                   tc, dm = parse_pdmp_stdout(subprocess.check_output(shlex.split("pdmp -mc 32 -ms 32 -g {}.png/png {}".format(clfd_ar, clfd_ar))))
-                   log.info("Best PDMP DM: %f"%dm)
-                   log.info("Best PDMP Period(topocentric):%f ms"%(tc))
-
-               log.info("PDMP run complete")    
-
-           except Exception as error:
-               log.error(error)  
-
             
-           os.chdir(wd)    
            log.info("Folding done for all candidates. Scoring all candidates...")
-           subprocess.check_call("python2 webpage_score.py --in_path=%s --type=clfd"%tmp_dir,shell=True) 
+           subprocess.check_call("python2 webpage_score.py --in_path={}".format(tmp_dir),shell=True) 
            log.info("Scoring done...")
 
-           log.info("Deleting CLFD archives...")
-           subprocess.check_call("rm *.ar.clfd",shell=True,cwd=tmp_dir) 
-           log.info("Done")
+
+           subprocess.check_call("rm *.csv",shell=True,cwd=tmp_dir) # Remove the input csv files
+
+           #Copy over the relevant meta file
+           meta_file_path = input_fil_list[0].split(beam_name)[0]
+           subprocess.check_call("cp %s/apsuse.meta %s.meta"%(meta_file_path,utc_start),shell=True,cwd=tmp_dir) 
+           
+
+
+           #Generate new metadata csv file  
+           df = pd.read_csv("{}/pics_scores.txt".format(tmp_dir))
+           df['png_output'] = [output_dir+"/"+os.path.basename(ar.replace(".ar",".png")) for ar in df['arfile']]
+           df['candidate_meta_file'] = [output_dir+"/"+os.path.basename(ar.replace(".ar",".cand")) for ar in df['arfile']]
+           df['arfile'] = [ output_dir+"/"+os.path.basename(ar) for ar in df['arfile']]
+           df.to_csv("{}/{}_{}_metadata.csv".format(tmp_dir,beam_name,utc_start))
+
+           subprocess.check_call("rm pics_scores.txt",shell=True,cwd=tmp_dir)
+ 
+            
+
+
+           # Generate candidate output structure with CSV of all metadata   and meta file for beam plots
+           #try:
+           #    subprocess.check_call("mkdir plots metafiles"%(output_dir),shell=True,cwd=tmp_dir)
+           #except:
+           #    log.info("Already made subdirectories")
+           #    pass
+           
+           #subprocess.check_call("mv *.ar *.png plots/",shell=True,cwd=tmp_dir) 
+           #meta_file_path = input_fil_list[0].split(beam_name)[0]
+           #subprocess.check_call("cp %s/apsuse.meta plots/%s.meta"%(meta_file_path,utc_name),shell=True,cwd=tmp_dir) 
+           
+           
+           
 
            #Create tar file of tmp directory in output directory 
-           subprocess.check_call("rm *.csv",shell=True,cwd=tmp_dir) # Remove the csv files
-           log.info("Tarring up all folds and the score file")
+           log.info("Tarring up all folds and the metadata csv file")
            tar_name = os.path.basename(output_dir) + "folds_and_scores.tar.gz"         
            make_tarfile(output_dir,tmp_dir,tar_name) 
            log.info("Tarred")
@@ -324,6 +323,7 @@ def fold_and_score_pipeline(data):
            remove_dir(tmp_dir)
            log.info("Removed temporary files")
 
+           sys.exit(0)
 
            # Add tar file to dataproduct
            dp = dict(

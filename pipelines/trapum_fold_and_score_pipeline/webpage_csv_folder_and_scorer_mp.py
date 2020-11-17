@@ -115,7 +115,6 @@ def fold_and_score_pipeline(data):
 
 
            # Select only candidates with corresponding beam id and snr cutoff
-           print (beam_ID,processing_args['snr_cutoff'])
            snr_cut_cands = df[df['snr'] > float(processing_args['snr_cutoff'])]
            single_beam_cands = snr_cut_cands[snr_cut_cands['beam_id']==beam_ID]
            single_beam_cands.sort_values('snr', inplace=True, ascending=False)  
@@ -179,6 +178,9 @@ def fold_and_score_pipeline(data):
            log.info("Folding done for all candidates. Scoring all candidates...")
            subprocess.check_call("python2 webpage_score.py --in_path=%s"%tmp_dir,shell=True)
            log.info("Scoring done...")
+
+
+           sys.exit(0)
 
            #Create tar file of tmp directory in output directory 
            subprocess.check_call("rm *.csv",shell=True,cwd=tmp_dir) # Remove the csv files

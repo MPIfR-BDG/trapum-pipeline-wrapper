@@ -24,6 +24,10 @@ def make_tarfile(output_path,input_path,name):
         tar.add(input_path, arcname= name)
 
 
+def get_id_from_cand_file(filename):
+    return(filename.split('_')[-1].strip(".ar"))
+
+
 
 def extract_and_score(opts):
     path = opts.in_path
@@ -35,7 +39,7 @@ def extract_and_score(opts):
             classifiers.append(cPickle.load(f))
             log.info("Loaded model {}".format(model))
     # Find all files
-    arfiles = glob.glob("{}/*.{}".format(path,file_type))
+    arfiles = sorted(glob.glob("{}/*.{}".format(path,file_type)),key=get_id_from_cand_file)
     log.info("Retrieved {} archive files from {}".format(
         len(arfiles), path))
     scores = []
@@ -43,10 +47,10 @@ def extract_and_score(opts):
     for classifier in classifiers:
         scores.append(classifier.report_score(readers))
     log.info("Scored with all models")
-    combined = sorted(zip(arfiles, *scores), reverse=True, key=lambda x: x[1])
-    log.info("Sorted scores...")
+    #combined = sorted(zip(arfiles, *scores), reverse=True, key=lambda x: x[1]) Skip sorting
+    combined  = zip(arfiles, *scores)
+    #log.info("Sorted scores...")
     names = ",".join(["{}".format(model.split("/")[-1]) for model in models])
-    #return combined,names
     with open("{}/pics_scores.txt".format(path),"w") as fout:
         fout.write("arfile,{}\n".format(names))
         for row in combined:

@@ -158,14 +158,12 @@ def fold_and_score_pipeline(data):
 
            input_fil_list.sort()             
            input_filenames = ' '.join(input_fil_list) 
-
-           
-
           
            # Untar csv file
            log.info("Untarring the filtered candidate information to %s"%tmp_dir)  
            untar_file(tarred_csv,tmp_dir)
-           tmp_dir = tmp_dir + '/' + os.path.basename(tarred_csv)
+           #tmp_dir = glob.glob(tmp_dir + '/' + os.path.basename(tarred_csv)
+           tmp_dir = glob.glob(tmp_dir + '/**/')[0] 
 
            #Read candidate info file into Pandas Dataframe
            log.info("Reading candidate info...") 
@@ -219,9 +217,6 @@ def fold_and_score_pipeline(data):
            fft_size = float(root.find('search_parameters/size').text)
            no_of_samples = int(root.find("header_parameters/nsamples").text)
 
-           #ra = float(root.find("header_parameters/src_raj").text)
-           #dec =  float(root.find("header_parameters/src_dej").text)
-           #ra_coord,dec_coord = convert_to_std_format(ra,dec)
 
            log.info("Modifying period to middle epoch reference of file")
                
@@ -249,21 +244,21 @@ def fold_and_score_pipeline(data):
            
            try:
                if 'ifbf' in beam_name: # Decide beam name in output
-                   script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 64 --incoherent --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 -f %s"%(pred_file, input_filenames) 
+                   script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 64 --incoherent --template /home/psr/software/PulsarX/include/template/meerkat_fold.template --clfd 2.0 -L 10 -f %s"%(pred_file, input_filenames) 
                    log.info(script)
                    subprocess.check_call(script,shell=True,cwd=tmp_dir)
                    log.info("PulsarX folding successful")
               
                elif 'cfbf' in beam_name:
                    beam_no = int(beam_name.strip("cfbf")) 
-                   script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 64 -i %d --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 -f %s"%(pred_file, beam_no, input_filenames) 
+                   script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 64 -i %d --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 --clfd 2.0 -f %s"%(pred_file, beam_no, input_filenames) 
                    log.info(script)
                    subprocess.check_call(script,shell=True,cwd=tmp_dir)
                    log.info("PulsarX folding successful")
 
                else:
                    log.info("Invalid beam name. Folding with default beam name") 
-                   script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 64  --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 -f %s"%(pred_file, input_filenames) 
+                   script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 64  --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 --clfd 2.0 -f %s"%(pred_file, input_filenames) 
                    log.info(script)
                    subprocess.check_call(script,shell=True,cwd=tmp_dir)
                    log.info("PulsarX folding successful")
@@ -288,31 +283,32 @@ def fold_and_score_pipeline(data):
 
 
            #Generate new metadata csv file  
-           df = pd.read_csv("{}/pics_scores.txt".format(tmp_dir))
-           df['png_output'] = [output_dir+"/"+os.path.basename(ar.replace(".ar",".png")) for ar in df['arfile']]
-           df['candidate_meta_file'] = [output_dir+"/"+os.path.basename(ar.replace(".ar",".cand")) for ar in df['arfile']]
-           df['arfile'] = [ output_dir+"/"+os.path.basename(ar) for ar in df['arfile']]
-           df.to_csv("{}/{}_{}_metadata.csv".format(tmp_dir,beam_name,utc_start))
-
-           subprocess.check_call("rm pics_scores.txt",shell=True,cwd=tmp_dir)
- 
-            
+           df1 = pd.read_csv(glob.glob("{}/*.cands".format(tmp_dir))[0],skiprows=11,delim_whitespace=True)
+           df2 = pd.read_csv("{}/pics_scores.txt".format(tmp_dir))
+           df1['png_file'] = [output_dir+"/"+os.path.basename(ar.replace(".ar",".png")) for ar in df2['arfile']]
+           df1['ar_file'] = [ output_dir+"/"+os.path.basename(ar) for ar in df2['arfile']]
+           df1['pics_TRAPUM_Ter5'] = df2['clfl2_trapum_Ter5.pkl']
+           df1['pics_PALFA'] = df2['clfl2_PALFA.pkl']     
 
 
-           # Generate candidate output structure with CSV of all metadata   and meta file for beam plots
-           #try:
-           #    subprocess.check_call("mkdir plots metafiles"%(output_dir),shell=True,cwd=tmp_dir)
-           #except:
-           #    log.info("Already made subdirectories")
-           #    pass
-           
-           #subprocess.check_call("mv *.ar *.png plots/",shell=True,cwd=tmp_dir) 
-           #meta_file_path = input_fil_list[0].split(beam_name)[0]
-           #subprocess.check_call("cp %s/apsuse.meta plots/%s.meta"%(meta_file_path,utc_name),shell=True,cwd=tmp_dir) 
-           
-           
-           
+           with open(glob.glob("{}/*.cands".format(tmp_dir))[0],"r") as f:
+               comment_lines = []
+               for ln in f:
+                   if ln.startswith("#"):
+                       comment_lines.append(ln)
+               comment_lines = comment_lines[:-1] 
+               f.close()    
+              
+           with open("{}/{}_{}_metadata.csv".format(tmp_dir,beam_name,utc_start),"w") as f:
+               for line in comment_lines:
+                   f.write(line)
+               df1.to_csv(f)
+               f.close() 
 
+           # Remove txt files
+           subprocess.check_call("rm *.txt",shell=True,cwd=tmp_dir)
+
+          
            #Create tar file of tmp directory in output directory 
            log.info("Tarring up all folds and the metadata csv file")
            tar_name = os.path.basename(output_dir) + "folds_and_scores.tar.gz"         
@@ -323,7 +319,6 @@ def fold_and_score_pipeline(data):
            remove_dir(tmp_dir)
            log.info("Removed temporary files")
 
-           sys.exit(0)
 
            # Add tar file to dataproduct
            dp = dict(

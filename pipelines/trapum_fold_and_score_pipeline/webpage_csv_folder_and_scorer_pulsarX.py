@@ -244,21 +244,21 @@ def fold_and_score_pipeline(data):
            
            try:
                if 'ifbf' in beam_name: # Decide beam name in output
-                   script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 64 --incoherent --template /home/psr/software/PulsarX/include/template/meerkat_fold.template --clfd 2.0 -L 10 -f %s"%(pred_file, input_filenames) 
+                   script = "psrfold_fil -v -t 12 --candfile %s -n 32 -b 64 --incoherent --template /home/psr/software/PulsarX/include/template/meerkat_fold.template --clfd 2.0 -L 10 -f %s"%(pred_file, input_filenames) 
                    log.info(script)
                    subprocess.check_call(script,shell=True,cwd=tmp_dir)
                    log.info("PulsarX folding successful")
               
                elif 'cfbf' in beam_name:
                    beam_no = int(beam_name.strip("cfbf")) 
-                   script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 64 -i %d --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 --clfd 2.0 -f %s"%(pred_file, beam_no, input_filenames) 
+                   script = "psrfold_fil -v -t 12 --candfile %s -n 32 -b 64 -i %d --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 --clfd 2.0 -f %s"%(pred_file, beam_no, input_filenames) 
                    log.info(script)
                    subprocess.check_call(script,shell=True,cwd=tmp_dir)
                    log.info("PulsarX folding successful")
 
                else:
                    log.info("Invalid beam name. Folding with default beam name") 
-                   script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 64  --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 --clfd 2.0 -f %s"%(pred_file, input_filenames) 
+                   script = "psrfold_fil -v -t 12 --candfile %s -n 32 -b 64  --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 --clfd 2.0 -f %s"%(pred_file, input_filenames) 
                    log.info(script)
                    subprocess.check_call(script,shell=True,cwd=tmp_dir)
                    log.info("PulsarX folding successful")

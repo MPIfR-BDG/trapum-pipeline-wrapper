@@ -135,7 +135,7 @@ def fold_and_score_pipeline(data):
 
 
     # Make temporary folder to keep any temporary outputs
-    tmp_dir = '/beegfs/u/prajwalvp/TEMP/%d'%processing_id
+    tmp_dir = '/beegfs/PROCESSING/TRAPUM/TEMP/%d'%processing_id
     try:
         subprocess.check_call("mkdir -p %s"%(tmp_dir),shell=True)
     except:

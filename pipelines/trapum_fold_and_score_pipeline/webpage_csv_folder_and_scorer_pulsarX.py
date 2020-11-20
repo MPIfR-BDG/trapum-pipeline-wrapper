@@ -29,7 +29,7 @@ log.setLevel('INFO')
 
 def make_tarfile(output_path,input_path,name):
     with tarfile.open(output_path+'/'+name, "w:gz") as tar:
-        tar.add(input_path, arcname= name)
+        tar.add(input_path, arcname= os.path.basename(input_path))
 
 def a_to_pdot(P_s, acc_ms2):
     LIGHT_SPEED = 2.99792458e8                 # Speed of Light in SI
@@ -281,12 +281,14 @@ def fold_and_score_pipeline(data):
            subprocess.check_call("cp %s/apsuse.meta %s.meta"%(meta_file_path,utc_start),shell=True,cwd=tmp_dir) 
            
 
-
+           # Decide tar name
+           tar_name = os.path.basename(output_dir) + "_folds_and_scores.tar.gz"        
+ 
            #Generate new metadata csv file  
            df1 = pd.read_csv(glob.glob("{}/*.cands".format(tmp_dir))[0],skiprows=11,delim_whitespace=True)
            df2 = pd.read_csv("{}/pics_scores.txt".format(tmp_dir))
-           df1['png_file'] = [output_dir+"/"+os.path.basename(ar.replace(".ar",".png")) for ar in df2['arfile']]
-           df1['ar_file'] = [ output_dir+"/"+os.path.basename(ar) for ar in df2['arfile']]
+           df1['png_file'] = [output_dir+"/"+tar_name+"/"+os.path.basename(ar.replace(".ar",".png")) for ar in df2['arfile']]
+           df1['ar_file'] = [ output_dir+"/"+tar_name+"/"+os.path.basename(ar) for ar in df2['arfile']]
            df1['pics_TRAPUM_Ter5'] = df2['clfl2_trapum_Ter5.pkl']
            df1['pics_PALFA'] = df2['clfl2_PALFA.pkl']     
 
@@ -311,7 +313,7 @@ def fold_and_score_pipeline(data):
           
            #Create tar file of tmp directory in output directory 
            log.info("Tarring up all folds and the metadata csv file")
-           tar_name = os.path.basename(output_dir) + "folds_and_scores.tar.gz"         
+           #tar_name = os.path.basename(output_dir) + "_folds_and_scores.tar.gz"         
            make_tarfile(output_dir,tmp_dir,tar_name) 
            log.info("Tarred")
 

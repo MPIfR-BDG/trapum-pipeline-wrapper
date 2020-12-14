@@ -29,7 +29,7 @@ log.setLevel('INFO')
 
 def make_tarfile(output_path,input_path,name):
     with tarfile.open(output_path+'/'+name, "w:gz") as tar:
-        tar.add(input_path, arcname= name)
+        tar.add(input_path, arcname= os.path.basename(input_path))
 
 def a_to_pdot(P_s, acc_ms2):
     LIGHT_SPEED = 2.99792458e8                 # Speed of Light in SI
@@ -244,21 +244,21 @@ def fold_and_score_pipeline(data):
            
            try:
                if 'ifbf' in beam_name: # Decide beam name in output
-                   script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 64 --incoherent --template /home/psr/software/PulsarX/include/template/meerkat_fold.template --clfd 2.0 -L 10 -f %s"%(pred_file, input_filenames) 
+                   script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 32 --incoherent --template /home/psr/software/PulsarX/include/template/meerkat_fold.template --clfd 2.0 -L 10 -f %s"%(pred_file, input_filenames) 
                    log.info(script)
                    subprocess.check_call(script,shell=True,cwd=tmp_dir)
                    log.info("PulsarX folding successful")
               
                elif 'cfbf' in beam_name:
                    beam_no = int(beam_name.strip("cfbf")) 
-                   script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 64 -i %d --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 --clfd 2.0 -f %s"%(pred_file, beam_no, input_filenames) 
+                   script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 32 -i %d --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 --clfd 2.0 -f %s"%(pred_file, beam_no, input_filenames) 
                    log.info(script)
                    subprocess.check_call(script,shell=True,cwd=tmp_dir)
                    log.info("PulsarX folding successful")
 
                else:
                    log.info("Invalid beam name. Folding with default beam name") 
-                   script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 64  --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 --clfd 2.0 -f %s"%(pred_file, input_filenames) 
+                   script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 32  --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 --clfd 2.0 -f %s"%(pred_file, input_filenames) 
                    log.info(script)
                    subprocess.check_call(script,shell=True,cwd=tmp_dir)
                    log.info("PulsarX folding successful")
@@ -281,12 +281,14 @@ def fold_and_score_pipeline(data):
            subprocess.check_call("cp %s/apsuse.meta %s.meta"%(meta_file_path,utc_start),shell=True,cwd=tmp_dir) 
            
 
-
+           # Decide tar name
+           tar_name = os.path.basename(output_dir) + "_folds_and_scores.tar.gz"        
+ 
            #Generate new metadata csv file  
            df1 = pd.read_csv(glob.glob("{}/*.cands".format(tmp_dir))[0],skiprows=11,delim_whitespace=True)
            df2 = pd.read_csv("{}/pics_scores.txt".format(tmp_dir))
-           df1['png_file'] = [output_dir+"/"+os.path.basename(ar.replace(".ar",".png")) for ar in df2['arfile']]
-           df1['ar_file'] = [ output_dir+"/"+os.path.basename(ar) for ar in df2['arfile']]
+           df1['png_file'] = [output_dir+"/"+tar_name+"/"+os.path.basename(ar.replace(".ar",".png")) for ar in df2['arfile']]
+           df1['ar_file'] = [ output_dir+"/"+tar_name+"/"+os.path.basename(ar) for ar in df2['arfile']]
            df1['pics_TRAPUM_Ter5'] = df2['clfl2_trapum_Ter5.pkl']
            df1['pics_PALFA'] = df2['clfl2_PALFA.pkl']     
 
@@ -311,7 +313,7 @@ def fold_and_score_pipeline(data):
           
            #Create tar file of tmp directory in output directory 
            log.info("Tarring up all folds and the metadata csv file")
-           tar_name = os.path.basename(output_dir) + "folds_and_scores.tar.gz"         
+           #tar_name = os.path.basename(output_dir) + "_folds_and_scores.tar.gz"         
            make_tarfile(output_dir,tmp_dir,tar_name) 
            log.info("Tarred")
 

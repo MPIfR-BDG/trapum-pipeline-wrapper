@@ -324,7 +324,7 @@ def fold_and_score_pipeline(data):
 
            # Add tar file to dataproduct
            dp = dict(
-                type="fold_tar_file",
+                type="fold_tar_file_pulsarx_20201214",
                 filename=tar_name,
                 directory=output_dir,
                 beam_id=beam_ID,

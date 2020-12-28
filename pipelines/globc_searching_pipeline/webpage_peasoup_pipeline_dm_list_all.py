@@ -208,7 +208,7 @@ def peasoup_pipeline(data):
             dm_list_name = "p_id_%d_"%processing_id + "dm_%f_%f"%(dm_list[0],dm_list[-1]) 
             np.savetxt(dm_list_name,dm_list,fmt='%.3f')
             
-            gulp_limit = 20  
+            gulp_limit = 15  
              
             if len(dm_list) > gulp_limit:
                 peasoup_script = "peasoup -k %s -z trapum_latest.birdies  -i %s --dm_file %s --ndm_trial_gulp %d --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s"%(chan_mask,iqred_file,dm_list_name,gulp_limit,processing_args['candidate_limit'],int(processing_args['nharmonics']),processing_args['snr_threshold'],processing_args['start_accel'],processing_args['end_accel'],fft_size,output_dir)

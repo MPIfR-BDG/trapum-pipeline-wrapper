@@ -116,6 +116,45 @@ def slices(csv):
                 yield subvalue
 
 
+def generate_chan_mask(chan_mask_csv,filterbank_header):
+    '''
+    
+    '''
+    ftop = filterbank_header['ftop']
+    fbottom = filterbank_header['fbottom']
+    nchans = filterbank_header['nchans']
+     
+    chan_mask = np.ones(nchans)
+    for val in chan_mask_csv.split(','):
+        start_freq_mask = float(val.split(":")[0])
+        end_freq_mask = float(val.split(":")[1])
+        start_chan_mask = int((start_freq_mask - fbottom)*nchans/(ftop-fbottom)) 
+        end_chan_mask = int((end_freq_mask - fbottom)*nchans/(ftop-fbottom)) 
+        chan_mask[start_chan_mask-1:end_chan_mask-1] = 0
+
+    np.savetxt('chan_mask_peasoup',chan_mask,fmt='%d')
+
+           
+       
+
+def generate_birdie_list(birdie_csv):
+    '''
+    '''
+    birdies=[]
+    birdies_width=[]
+ 
+    for val in birdie_csv.split(','): 
+        birdies.append(val.split(":")[0]) 
+        birdies_width.append(val.split(":")[1]) 
+    try:
+        np.savetxt('trapum.birdies', np.c_[np.array(birdies,dtype=float),np.array(birdies_width,dtype=float)],fmt="%.2f") 
+    except Exception as error:
+        log.error(error)
+    
+
+
+
+
 def peasoup_pipeline(data):
     
     output_dps = []
@@ -150,7 +189,17 @@ def peasoup_pipeline(data):
             dp_list.sort()           
             merged = 1
             all_files = ' '.join(dp_list)   
-            merged_file = "%s/temp_merge_p_id_%d.fil"%(output_dir,processing_id) 
+
+            # Check for temporary file storage
+            if processing_args['temp_filesystem']=='Beeond':
+               log.info("Running on Beeond")
+               processing_dir = '/beeond/PROCESSING/TEMP/%d'%processing_id
+            else:
+               log.info("Running on BeeGFS")
+               processing_dir = output_dir
+
+
+            merged_file = "%s/temp_merge_p_id_%d.fil"%(processing_dir,processing_id) 
             digifil_script = "digifil %s -b 8 -threads 15 -o %s"%(all_files,merged_file)
             print(digifil_script)
             time.sleep(2)
@@ -168,26 +217,29 @@ def peasoup_pipeline(data):
 
            
             # Determine fft_size
-            fft_size = decide_fft_size(filterbank_header)
-            if fft_size > 134217728:
-                fft_size = 134217728 # Hard coded for max limit - tmp assuming 4hr, 76 us and 4k chans
+            if processing_args['fft_length']==0:
+                fft_size = decide_fft_size(filterbank_header)
+            else:
+                fft_size = processing_args['fft_length']  
+
+            if fft_size > 201326592:
+                fft_size = 201326592 # Hard coded for max limit - tmp assuming 4hr, 76 us and 4k chans
 
             # Determine channel mask to use
+            chan_mask_csv = processing_args['channel_mask'] 
+            peasoup_chan_mask = generate_chan_mask(chan_mask_csv, filterbank_header)
 
-            if processing_args['nchans'] == 4096:
-                chan_mask = "4096_chan_mask_for_peasoup"
-            elif processing_args['nchans']==2048:
-                chan_mask = "2048_chan_mask_for_peasoup"
-            else:
-                chan_mask = "256_chan_mask_for_peasoup" 
-             
+            # Determine birdie list to use
+            birdie_list_csv = processing_args['birdie_list'] 
+            birdie_list = generate_birdie_list(birdie_list_csv)
 
-            # DM split if needed  
 
-            #dm_list = processing_args['dm_list'].split(",")  ## Old style
-            #log.info("Searching full DM range... ")
-            #dm_list = processing_args['dm_list'].split(",")
-            #dm_list_float = [round(float(dm), 3) for dm in dm_list]
+            # Set RAM limit
+            ram_limit = processing_args['ram_limit']
+            
+            #    
+   
+
               
             dm_csv = processing_args['dm_list'] 
             dm_list = sorted(list(set(list(slices(dm_csv)))))   
@@ -199,16 +251,16 @@ def peasoup_pipeline(data):
             gulp_limit = 300  
              
             if len(dm_list) > gulp_limit:
-                peasoup_script = "peasoup -k %s -z trapum_latest.birdies  -i %s --dm_file %s --ndm_trial_gulp %d --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s"%(chan_mask,iqred_file,dm_list_name,gulp_limit,processing_args['candidate_limit'],int(processing_args['nharmonics']),processing_args['snr_threshold'],processing_args['start_accel'],processing_args['end_accel'],fft_size,output_dir)
+                peasoup_script = "peasoup -k chan_mask_peasoup -z trapum.birdies  -i %s --ram_limit_gb %f --dm_file %s --ndm_trial_gulp %d --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s"%(iqred_file, ram_limit, dm_list_name,gulp_limit,processing_args['candidate_limit'],int(processing_args['nharmonics']),processing_args['snr_threshold'],processing_args['start_accel'],processing_args['end_accel'],fft_size,processing_dir)
                 call_peasoup(peasoup_script)
             else:
-                peasoup_script = "peasoup -k %s -z trapum_latest.birdies  -i %s --dm_file %s --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s"%(chan_mask,iqred_file,dm_list_name,processing_args['candidate_limit'],int(processing_args['nharmonics']),processing_args['snr_threshold'],processing_args['start_accel'],processing_args['end_accel'],fft_size,output_dir)
+                peasoup_script = "peasoup -k chan_mask_peasoup -z trapum.birdies  -i %s --ram_limit_gb %f --dm_file %s --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s"%(iqred_file, ram_limit, dm_list_name,processing_args['candidate_limit'],int(processing_args['nharmonics']),processing_args['snr_threshold'],processing_args['start_accel'],processing_args['end_accel'],fft_size,processing_dir)
  
                 call_peasoup(peasoup_script)
 
 
             # Remove merged file after searching
-            cand_peasoup = data["base_output_dir"]+'/candidates.peasoup'
+            cand_peasoup = processing_dir +'/candidates.peasoup'
             tmp_files=[]
             if 'temp_merge' in merged_file:
                 tmp_files.append(merged_file)

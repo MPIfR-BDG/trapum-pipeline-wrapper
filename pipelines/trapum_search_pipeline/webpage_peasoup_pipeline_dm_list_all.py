@@ -34,7 +34,7 @@ def iqr_filter(merged_file, processing_args, output_dir):
     iqr_file = output_dir + '/' + \
         os.path.basename(merged_file)[:-4] + '_iqrm.fil'
     samples = int(round(processing_args['window'] / processing_args['tsamp']))
-    iqr_script = "iqrm_apollo_cli -m %d -t %.2f -s %d -f %d -i %s -o %s" % (
+    iqr_script = "iqrm_apollo_cli -m %d -t %.2f --replacement median -s %d -f %d -i %s -o %s" % (
         processing_args['max_lags'], processing_args['threshold'], samples,
         processing_args['nchans'], merged_file, iqr_file)
     log.info("Script that will run..")
@@ -45,13 +45,16 @@ def iqr_filter(merged_file, processing_args, output_dir):
         return iqr_file
 
     except Exception as error:
-        log.info("Error. Cleaning up partial file...")
+        log.info("Error. Cleaning up partial iqr file and input merged file")
         subprocess.check_call("rm %s" % iqr_file, shell=True)
+        subprocess.check_call("rm %s" % merged_file, shell=True)
         log.error(error)
 
 
 def call_peasoup(peasoup_script):
     log.info('Starting peasoup search..')
+    log.info("peasoup command that will be run..")
+    log.info(peasoup_script)
     try:
         subprocess.check_call(peasoup_script, shell=True)
         log.info("Search complete")
@@ -126,9 +129,26 @@ def generate_chan_mask(chan_mask_csv, filterbank_header):
         end_freq_mask = float(val.split(":")[1])
         start_chan_mask = int((start_freq_mask - fbottom) *
                               nchans / (ftop - fbottom))
+
         end_chan_mask = int((end_freq_mask - fbottom) *
                             nchans / (ftop - fbottom))
-        chan_mask[start_chan_mask - 1:end_chan_mask - 1] = 0
+
+        chbw = (ftop-fbottom) / nchans
+        idx0 = min(max((rstart - fbottom) // chbw, 0), nchans-1)
+        idx1 = max(min(int((rend - fbottom) / chbw + 0.5), nchans-1),0)
+
+
+
+        if start_chan_mask < 1:
+           log.warning("Specified frequency below lower observing frequency bound")
+           log.info("Re-adjusting to observable bandwidth") 
+           start_chan_mask = 1
+        elif end_chan_mask > nchans:
+           log.warning("Specified frequency above upper observing frequency bound")
+           log.info("Re-adjusting to observable bandwidth") 
+           end_chan_mask = nchans
+           
+        chan_mask[start_chan_mask - 1:end_chan_mask - 1] = 0     
     np.savetxt('chan_mask_peasoup', chan_mask, fmt='%d')
 
 
@@ -186,6 +206,12 @@ def peasoup_pipeline(data):
             if processing_args['temp_filesystem'] == '/beeond/':
                 log.info("Running on Beeond")
                 processing_dir = '/beeond/PROCESSING/TEMP/%d' % processing_id
+                try:
+                    subprocess.check_call("mkdir -p %s" % (processing_dir), shell=True)
+                except BaseException:
+                    log.warning("Subdirectory {} already exists".format(processing_dir))
+                    pass
+                
             else:
                 log.info("Running on BeeGFS")
                 processing_dir = output_dir
@@ -195,7 +221,6 @@ def peasoup_pipeline(data):
             digifil_script = "digifil %s -b 8 -threads 15 -o %s" % (
                 all_files, merged_file)
             print(digifil_script)
-            time.sleep(2)
             merge_filterbanks(digifil_script, merged_file)
 
             # Get header of merged file
@@ -204,7 +229,7 @@ def peasoup_pipeline(data):
             # IQR
             processing_args['tsamp'] = float(filterbank_header['tsamp'])
             processing_args['nchans'] = int(filterbank_header['nchans'])
-            iqred_file = iqr_filter(merged_file, processing_args, output_dir)
+            iqred_file = iqr_filter(merged_file, processing_args, processing_dir)
             remove_temporary_files([merged_file])
 
             # Determine fft_size
@@ -228,15 +253,18 @@ def peasoup_pipeline(data):
             # Set RAM limit
             ram_limit = processing_args['ram_limit']
 
+            # Generate actual dm list file  
             dm_csv = processing_args['dm_list']
             dm_list = sorted(list(set(list(slices(dm_csv)))))
-
             dm_list_name = "p_id_%d_" % processing_id + \
                 "dm_%f_%f" % (dm_list[0], dm_list[-1])
             np.savetxt(dm_list_name, dm_list, fmt='%.3f')
 
+            # Initialise peasoup script
             peasoup_script = "peasoup -k chan_mask_peasoup -z trapum.birdies  -i %s --ram_limit_gb %f --dm_file %s --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s" % (
                 iqred_file, ram_limit, dm_list_name, processing_args['candidate_limit'], int(processing_args['nharmonics']), processing_args['snr_threshold'], processing_args['start_accel'], processing_args['end_accel'], fft_size, processing_dir)
+
+            
             call_peasoup(peasoup_script)
 
             # Remove merged file after searching
@@ -253,6 +281,15 @@ def peasoup_pipeline(data):
                 dmend=dm_list[-1],
                 dmstep=dm_csv,
             )
+
+
+            # Transfer files to output directory if process ran on Beeond
+            if processing_args['temp_filesystem'] == '/beeond/':
+               try:
+                   subprocess.check_call("mv %s/overview.xml %s"%(processing_dir,output_dir),shell=True)
+                   log.info("Transferred XML file from Beeond to BeeGFS")
+               except Exception as error:
+                   log.error(error)
 
             dp = dict(
                 type="peasoup_xml",

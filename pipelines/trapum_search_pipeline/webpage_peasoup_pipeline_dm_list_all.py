@@ -173,12 +173,14 @@ def peasoup_pipeline(data):
                 fft_size = 134217728 # Hard coded for max limit - tmp assuming 4hr, 76 us and 4k chans
 
             # Determine channel mask to use
+
             if processing_args['nchans'] == 4096:
                 chan_mask = "4096_chan_mask_for_peasoup"
+            elif processing_args['nchans']==2048:
+                chan_mask = "2048_chan_mask_for_peasoup"
             else:
                 chan_mask = "256_chan_mask_for_peasoup" 
              
-
 
             # DM split if needed  
 

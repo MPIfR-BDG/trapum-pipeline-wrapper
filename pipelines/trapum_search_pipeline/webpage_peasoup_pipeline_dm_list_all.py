@@ -125,30 +125,27 @@ def generate_chan_mask(chan_mask_csv, filterbank_header):
     nchans = filterbank_header['nchans']
     chan_mask = np.ones(nchans)
     for val in chan_mask_csv.split(','):
-        start_freq_mask = float(val.split(":")[0])
-        end_freq_mask = float(val.split(":")[1])
-        start_chan_mask = int((start_freq_mask - fbottom) *
-                              nchans / (ftop - fbottom))
+        rstart = float(val.split(":")[0])
+        rend = float(val.split(":")[1])
 
-        end_chan_mask = int((end_freq_mask - fbottom) *
-                            nchans / (ftop - fbottom))
+        #start_chan_mask = int((start_freq_mask - fbottom) *
+        #                              nchans / (ftop - fbottom))
+
+        #end_chan_mask = int((end_freq_mask - fbottom) *
+        #                    nchans / (ftop - fbottom))
 
         chbw = (ftop-fbottom) / nchans
-        idx0 = min(max((rstart - fbottom) // chbw, 0), nchans-1)
-        idx1 = max(min(int((rend - fbottom) / chbw + 0.5), nchans-1),0)
-
-
-
-        if start_chan_mask < 1:
-           log.warning("Specified frequency below lower observing frequency bound")
-           log.info("Re-adjusting to observable bandwidth") 
-           start_chan_mask = 1
-        elif end_chan_mask > nchans:
-           log.warning("Specified frequency above upper observing frequency bound")
-           log.info("Re-adjusting to observable bandwidth") 
-           end_chan_mask = nchans
-           
-        chan_mask[start_chan_mask - 1:end_chan_mask - 1] = 0     
+        idx0 = int(min(max((rstart - fbottom) // chbw, 0), nchans-1))
+        idx1 = int(max(min(int((rend - fbottom) / chbw + 0.5), nchans-1),0))
+        #if start_chan_mask < 1:
+        #   log.warning("Specified frequency below lower observing frequency bound")
+        #   log.info("Re-adjusting to observable bandwidth") 
+        #   start_chan_mask = 1
+        #elif end_chan_mask > nchans:
+        #   log.warning("Specified frequency above upper observing frequency bound")
+        #   log.info("Re-adjusting to observable bandwidth") 
+        #   end_chan_mask = nchans
+        chan_mask[idx0:idx1+1] = 0     
     np.savetxt('chan_mask_peasoup', chan_mask, fmt='%d')
 
 

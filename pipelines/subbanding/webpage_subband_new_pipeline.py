@@ -13,6 +13,7 @@ from utils import header_util
 log = logging.getLogger('peasoup_search_send')
 FORMAT = "[%(levelname)s - %(asctime)s - %(filename)s:%(lineno)s] %(message)s"
 logging.basicConfig(format=FORMAT)
+log.setLevel(logging.INFO)
 
 SIZE_MARGIN = 200 #bytes for possible header differences
 
@@ -121,7 +122,7 @@ def get_fil_dict(input_file):
 
 
 def subband_pipeline(data):
-
+    log.info("Starting subbanding pipeline")
     output_dps = []
 
     '''

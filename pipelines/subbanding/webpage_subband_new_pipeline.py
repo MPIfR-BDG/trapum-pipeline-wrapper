@@ -14,7 +14,7 @@ log = logging.getLogger('peasoup_search_send')
 FORMAT = "[%(levelname)s - %(asctime)s - %(filename)s:%(lineno)s] %(message)s"
 logging.basicConfig(format=FORMAT)
 
-SIZE_MARGIN = 0.01
+SIZE_MARGIN = 200 #bytes for possible header differences
 
 def iqr_filter(merged_file, processing_args, output_dir):  # add tsamp,nchans to processing_args
     iqr_file = output_dir + '/' + \
@@ -163,7 +163,7 @@ def subband_pipeline(data):
                 all_files, merged_file)
 
             if os.path.isfile(merged_file):
-                if abs(os.stat(merged_file).st_size - expected_merged_size) < (SIZE_MARGIN * expected_merged_size):
+                if abs(os.stat(merged_file).st_size - expected_merged_size) < SIZE_MARGIN:
                     log.info("Found merged file that is of the expected size, using that")
                 else:
                     log.info("Prior merged file found but of incorrect length, creating new merged file")
@@ -182,7 +182,7 @@ def subband_pipeline(data):
             iqred_file = output_dir + '/' + \
                 os.path.basename(merged_file)[:-4] + '_iqrm.fil'
             if os.path.isfile(iqred_file):
-                if abs(os.stat(iqred_file).st_size - expected_merged_size) < (SIZE_MARGIN * expected_merged_size):
+                if abs(os.stat(iqred_file).st_size - expected_merged_size) < SIZE_MARGIN:
                     log.info("Found iqred_file file that is of the expected size, using that")
                 else:
                     log.info("Prior iqred_file found but of incorrect length, creating new iqred_file file")

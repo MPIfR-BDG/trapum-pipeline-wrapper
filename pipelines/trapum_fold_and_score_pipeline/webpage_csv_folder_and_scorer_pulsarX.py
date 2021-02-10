@@ -69,7 +69,7 @@ def generate_pulsarX_cand_file(tmp_dir, beam_name, utc_name, cand_mod_periods, c
 
     cand_file_path = '%s/%s_%s_cands.txt'%(tmp_dir, beam_name, utc_name)
     source_name_prefix = "%s_%s"%(beam_name,utc_name)
-    with open(cand_file_path,'a') as f:
+    with open(cand_file_path,'w') as f:
         f.write("#id DM accel F0 F1 S/N\n")
         for i in range(len(cand_mod_periods)):
             f.write("%d %f %f %f 0 %f\n"%(i, cand_dms[i], cand_accs[i], 1.0/cand_mod_periods[i],cand_snrs[i])) 
@@ -244,21 +244,21 @@ def fold_and_score_pipeline(data):
            
            try:
                if 'ifbf' in beam_name: # Decide beam name in output
-                   script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 32 --incoherent --template /home/psr/software/PulsarX/include/template/meerkat_fold.template --clfd 2.0 -L 10 -f %s"%(pred_file, input_filenames) 
+                   script = "psrfold_fil -v --render -t 12 --candfile %s -n 64 -b 32 --incoherent --template /home/psr/software/PulsarX/include/template/meerkat_fold.template --clfd 2.0 -L 10 -f %s"%(pred_file, input_filenames) 
                    log.info(script)
                    subprocess.check_call(script,shell=True,cwd=tmp_dir)
                    log.info("PulsarX folding successful")
               
                elif 'cfbf' in beam_name:
                    beam_no = int(beam_name.strip("cfbf")) 
-                   script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 32 -i %d --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 --clfd 2.0 -f %s"%(pred_file, beam_no, input_filenames) 
+                   script = "psrfold_fil -v --render -t 12 --candfile %s -n 64 -b 32 -i %d --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 --clfd 2.0 -f %s"%(pred_file, beam_no, input_filenames) 
                    log.info(script)
                    subprocess.check_call(script,shell=True,cwd=tmp_dir)
                    log.info("PulsarX folding successful")
 
                else:
                    log.info("Invalid beam name. Folding with default beam name") 
-                   script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 32  --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 --clfd 2.0 -f %s"%(pred_file, input_filenames) 
+                   script = "psrfold_fil -v --render -t 12 --candfile %s -n 64 -b 32  --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 --clfd 2.0 -f %s"%(pred_file, input_filenames) 
                    log.info(script)
                    subprocess.check_call(script,shell=True,cwd=tmp_dir)
                    log.info("PulsarX folding successful")

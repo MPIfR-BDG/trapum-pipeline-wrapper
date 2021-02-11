@@ -77,7 +77,7 @@ def generate_pulsarX_cand_file(
 
     cand_file_path = '%s/%s_%s_cands.txt' % (tmp_dir, beam_name, utc_name)
     source_name_prefix = "%s_%s" % (beam_name, utc_name)
-    with open(cand_file_path, 'w') as f:
+    with open(cand_file_path, 'a') as f:
         f.write("#id DM accel F0 F1 S/N\n")
         for i in range(len(cand_mod_periods)):
             f.write(
@@ -207,144 +207,6 @@ def fold_and_score_pipeline(data):
                     beam_id=beam_ID,
                     pointing_id=pointing["id"],
                     metainfo=json.dumps("no_candidate_for_beam")
-<<<<<<< HEAD
-                    )
-          
-               output_dps.append(dp)
-               return output_dps
- 
-           #Limit number of candidates to fold
-           log.info("Setting a maximum limit of %d candidates per beam"%(processing_args['cand_limit_per_beam'])) 
-           if single_beam_cands.shape[0] > processing_args['cand_limit_per_beam']:
-               single_beam_cands_fold_limited = single_beam_cands.head(processing_args['cand_limit_per_beam'])
-           else:
-               single_beam_cands_fold_limited = single_beam_cands       
-            
-
- 
-           # Read parameters and fold
-           log.info("Reading all necessary candidate parameters") 
-           cand_periods = single_beam_cands_fold_limited['period'].to_numpy()
-           cand_accs = single_beam_cands_fold_limited['acc'].to_numpy()
-           cand_dms = single_beam_cands_fold_limited['dm'].to_numpy()
-           cand_snrs = single_beam_cands_fold_limited['snr'].to_numpy()
-           cand_ids = single_beam_cands_fold_limited['cand_id_in_file'].to_numpy()
-           xml_files = single_beam_cands_fold_limited['file'].to_numpy() # Choose first element. If filtered right, there should be just one xml filename throughout!
-
-           tree = ET.parse(xml_files[0])
-           root = tree.getroot() 
-           tsamp = float(root.find("header_parameters/tsamp").text)
-           fft_size = float(root.find('search_parameters/size').text)
-           no_of_samples = int(root.find("header_parameters/nsamples").text)
-
-
-           log.info("Modifying period to middle epoch reference of file")
-               
-           mod_periods=[]
-           pdots= []
-           for i in range(len(cand_periods)):
-               Pdot = a_to_pdot(cand_periods[i],cand_accs[i])
-               mod_periods.append(period_modified(cand_periods[i],Pdot,no_of_samples,tsamp,fft_size))
-               pdots.append(Pdot) 
-
-           cand_mod_periods = np.asarray(mod_periods,dtype=float)
-             
-
-           log.info("Generating predictor file for PulsarX")
-           try:
-               pred_file = generate_pulsarX_cand_file(tmp_dir, beam_name, utc_start, cand_mod_periods, cand_dms, cand_accs, cand_snrs)
-               log.info("Predictor file ready for folding: %s"%(pred_file))
-           except Exception as error:
-               log.error(error)
-               log.error("Predictor candidate file generation failed")   
-           
-
-           # Run PulsarX
-           log.info("PulsarX will be launched with the following command:")
-           
-           try:
-               if 'ifbf' in beam_name: # Decide beam name in output
-                   script = "psrfold_fil -v --render -t 12 --candfile %s -n 64 -b 32 --incoherent --template /home/psr/software/PulsarX/include/template/meerkat_fold.template --clfd 2.0 -L 10 -f %s"%(pred_file, input_filenames) 
-                   log.info(script)
-                   subprocess.check_call(script,shell=True,cwd=tmp_dir)
-                   log.info("PulsarX folding successful")
-              
-               elif 'cfbf' in beam_name:
-                   beam_no = int(beam_name.strip("cfbf")) 
-                   script = "psrfold_fil -v --render -t 12 --candfile %s -n 64 -b 32 -i %d --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 --clfd 2.0 -f %s"%(pred_file, beam_no, input_filenames) 
-                   log.info(script)
-                   subprocess.check_call(script,shell=True,cwd=tmp_dir)
-                   log.info("PulsarX folding successful")
-
-               else:
-                   log.info("Invalid beam name. Folding with default beam name") 
-                   script = "psrfold_fil -v --render -t 12 --candfile %s -n 64 -b 32  --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 --clfd 2.0 -f %s"%(pred_file, input_filenames) 
-                   log.info(script)
-                   subprocess.check_call(script,shell=True,cwd=tmp_dir)
-                   log.info("PulsarX folding successful")
-
-
-           except Exception as error:
-               log.error(error)
-               log.error("PulsarX failed")   
-                  
-            
-           log.info("Folding done for all candidates. Scoring all candidates...")
-           subprocess.check_call("python2 webpage_score.py --in_path={}".format(tmp_dir),shell=True) 
-           log.info("Scoring done...")
-
-
-           subprocess.check_call("rm *.csv",shell=True,cwd=tmp_dir) # Remove the input csv files
-
-           #Copy over the relevant meta file
-           meta_file_path = input_fil_list[0].split(beam_name)[0]
-           subprocess.check_call("cp %s/apsuse.meta %s.meta"%(meta_file_path,utc_start),shell=True,cwd=tmp_dir) 
-           
-
-           # Decide tar name
-           tar_name = os.path.basename(output_dir) + "_folds_and_scores.tar.gz"        
- 
-           #Generate new metadata csv file  
-           df1 = pd.read_csv(glob.glob("{}/*.cands".format(tmp_dir))[0],skiprows=11,delim_whitespace=True)
-           df2 = pd.read_csv("{}/pics_scores.txt".format(tmp_dir))
-           df1['png_file'] = [output_dir+"/"+tar_name+"/"+os.path.basename(ar.replace(".ar",".png")) for ar in df2['arfile']]
-           df1['ar_file'] = [ output_dir+"/"+tar_name+"/"+os.path.basename(ar) for ar in df2['arfile']]
-           df1['pics_TRAPUM_Ter5'] = df2['clfl2_trapum_Ter5.pkl']
-           df1['pics_PALFA'] = df2['clfl2_PALFA.pkl']     
-
-
-           with open(glob.glob("{}/*.cands".format(tmp_dir))[0],"r") as f:
-               comment_lines = []
-               for ln in f:
-                   if ln.startswith("#"):
-                       comment_lines.append(ln)
-               comment_lines = comment_lines[:-1] 
-               f.close()    
-              
-           with open("{}/{}_{}_metadata.csv".format(tmp_dir,beam_name,utc_start),"w") as f:
-               for line in comment_lines:
-                   f.write(line)
-               df1.to_csv(f)
-               f.close() 
-
-           # Remove txt files
-           subprocess.check_call("rm *.txt",shell=True,cwd=tmp_dir)
-
-          
-           #Create tar file of tmp directory in output directory 
-           log.info("Tarring up all folds and the metadata csv file")
-           #tar_name = os.path.basename(output_dir) + "_folds_and_scores.tar.gz"         
-           make_tarfile(output_dir,tmp_dir,tar_name) 
-           log.info("Tarred")
-
-           # Remove contents in temporary directory
-           remove_dir(tmp_dir)
-           log.info("Removed temporary files")
-
-
-           # Add tar file to dataproduct
-           dp = dict(
-=======
                 )
 
                 output_dps.append(dp)
@@ -413,26 +275,40 @@ def fold_and_score_pipeline(data):
             # Run PulsarX
             log.info("PulsarX will be launched with the following command:")
 
+            cmask = processing_args.get("channel_mask", None)
+            zap_string = ""
+            if cmask is not None:
+                cmask = cmask.strip()
+                try:
+                    zap_string = " ".join(["--rfi zap {} {}".format(
+                        *i.split(":")) for i in cmask.split(",")])
+                except Exception as error:
+                    raise Exception("Unable to parse channel mask: {}".format(
+                        str(error)))
+
+            nbins = processing_args.get("nbins", 32)
+            subint_length = processing_args.get("subint_length", 10.0)
+            nsubband = processing_args.get("nsubband", 64)
             try:
                 if 'ifbf' in beam_name:  # Decide beam name in output
-                    script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 32 --incoherent --template /home/psr/software/PulsarX/include/template/meerkat_fold.template --clfd 2.0 -L 10 -f %s" % (
-                        pred_file, input_filenames)
+                    script = "psrfold_fil -v -t 12 --candfile %s -n %d -b %d --incoherent --template /home/psr/software/PulsarX/include/template/meerkat_fold.template --clfd 2.0 -L %d -f %s %s" % (
+                        pred_file, nsubband, nbins, subint_length, input_filenames, zap_string)
                     log.info(script)
                     subprocess.check_call(script, shell=True, cwd=tmp_dir)
                     log.info("PulsarX folding successful")
 
                 elif 'cfbf' in beam_name:
                     beam_no = int(beam_name.strip("cfbf"))
-                    script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 32 -i %d --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 --clfd 2.0 -f %s" % (
-                        pred_file, beam_no, input_filenames)
+                    script = "psrfold_fil -v -t 12 --candfile %s -n %d -b %d -i %d --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L %d --clfd 2.0 -f %s %s" % (
+                        pred_file, nsubband, nbins, beam_no, subint_length, input_filenames, zap_string)
                     log.info(script)
                     subprocess.check_call(script, shell=True, cwd=tmp_dir)
                     log.info("PulsarX folding successful")
 
                 else:
                     log.info("Invalid beam name. Folding with default beam name")
-                    script = "psrfold_fil -v -t 12 --candfile %s -n 64 -b 32  --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L 10 --clfd 2.0 -f %s" % (
-                        pred_file, input_filenames)
+                    script = "psrfold_fil -v -t 12 --candfile %s -n %d -b %d  --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L %d --clfd 2.0 -f %s %s" % (
+                        pred_file, nsubband, nbins, subint_length, input_filenames, zap_string)
                     log.info(script)
                     subprocess.check_call(script, shell=True, cwd=tmp_dir)
                     log.info("PulsarX folding successful")

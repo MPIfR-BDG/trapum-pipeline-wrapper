@@ -128,24 +128,24 @@ def generate_chan_mask(chan_mask_csv, filterbank_header):
         rstart = float(val.split(":")[0])
         rend = float(val.split(":")[1])
 
-        #start_chan_mask = int((start_freq_mask - fbottom) *
+        # start_chan_mask = int((start_freq_mask - fbottom) *
         #                              nchans / (ftop - fbottom))
 
-        #end_chan_mask = int((end_freq_mask - fbottom) *
+        # end_chan_mask = int((end_freq_mask - fbottom) *
         #                    nchans / (ftop - fbottom))
 
-        chbw = (ftop-fbottom) / nchans
-        idx0 = int(min(max((rstart - fbottom) // chbw, 0), nchans-1))
-        idx1 = int(max(min(int((rend - fbottom) / chbw + 0.5), nchans-1),0))
-        #if start_chan_mask < 1:
+        chbw = (ftop - fbottom) / nchans
+        idx0 = int(min(max((rstart - fbottom) // chbw, 0), nchans - 1))
+        idx1 = int(max(min(int((rend - fbottom) / chbw + 0.5), nchans - 1), 0))
+        # if start_chan_mask < 1:
         #   log.warning("Specified frequency below lower observing frequency bound")
-        #   log.info("Re-adjusting to observable bandwidth") 
+        #   log.info("Re-adjusting to observable bandwidth")
         #   start_chan_mask = 1
-        #elif end_chan_mask > nchans:
+        # elif end_chan_mask > nchans:
         #   log.warning("Specified frequency above upper observing frequency bound")
-        #   log.info("Re-adjusting to observable bandwidth") 
+        #   log.info("Re-adjusting to observable bandwidth")
         #   end_chan_mask = nchans
-        chan_mask[idx0:idx1+1] = 0     
+        chan_mask[idx0:idx1 + 1] = 0
     np.savetxt('chan_mask_peasoup', chan_mask, fmt='%d')
 
 
@@ -204,19 +204,24 @@ def peasoup_pipeline(data):
                 log.info("Running on Beeond")
                 processing_dir = '/beeond/PROCESSING/TEMP/%d' % processing_id
                 try:
-                    subprocess.check_call("mkdir -p %s" % (processing_dir), shell=True)
+                    subprocess.check_call(
+                        "mkdir -p %s" %
+                        (processing_dir), shell=True)
                 except BaseException:
-                    log.warning("Subdirectory {} already exists".format(processing_dir))
+                    log.warning(
+                        "Subdirectory {} already exists".format(processing_dir))
                     pass
-                
+
             else:
                 log.info("Running on BeeGFS")
                 processing_dir = output_dir
 
+            fscrunch = processing_args.get("fscrunch", 1)
+            tscrunch = processing_args.get("tscrunch", 1)
             merged_file = "%s/temp_merge_p_id_%d.fil" % (
                 processing_dir, processing_id)
-            digifil_script = "digifil %s -b 8 -threads 15 -o %s" % (
-                all_files, merged_file)
+            digifil_script = "digifil %s -b 8 -threads 15 -o %s -f %d -t %d" % (
+                all_files, merged_file, fscrunch, tscrunch)
             print(digifil_script)
             merge_filterbanks(digifil_script, merged_file)
 
@@ -226,7 +231,8 @@ def peasoup_pipeline(data):
             # IQR
             processing_args['tsamp'] = float(filterbank_header['tsamp'])
             processing_args['nchans'] = int(filterbank_header['nchans'])
-            iqred_file = iqr_filter(merged_file, processing_args, processing_dir)
+            iqred_file = iqr_filter(
+                merged_file, processing_args, processing_dir)
             remove_temporary_files([merged_file])
 
             # Determine fft_size
@@ -250,7 +256,7 @@ def peasoup_pipeline(data):
             # Set RAM limit
             ram_limit = processing_args['ram_limit']
 
-            # Generate actual dm list file  
+            # Generate actual dm list file
             dm_csv = processing_args['dm_list']
             dm_list = sorted(list(set(list(slices(dm_csv)))))
             dm_list_name = "p_id_%d_" % processing_id + \
@@ -261,7 +267,6 @@ def peasoup_pipeline(data):
             peasoup_script = "peasoup -k chan_mask_peasoup -z trapum.birdies  -i %s --ram_limit_gb %f --dm_file %s --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s" % (
                 iqred_file, ram_limit, dm_list_name, processing_args['candidate_limit'], int(processing_args['nharmonics']), processing_args['snr_threshold'], processing_args['start_accel'], processing_args['end_accel'], fft_size, processing_dir)
 
-            
             call_peasoup(peasoup_script)
 
             # Remove merged file after searching
@@ -279,14 +284,15 @@ def peasoup_pipeline(data):
                 dmstep=dm_csv,
             )
 
-
             # Transfer files to output directory if process ran on Beeond
             if processing_args['temp_filesystem'] == '/beeond/':
-               try:
-                   subprocess.check_call("mv %s/overview.xml %s"%(processing_dir,output_dir),shell=True)
-                   log.info("Transferred XML file from Beeond to BeeGFS")
-               except Exception as error:
-                   log.error(error)
+                try:
+                    subprocess.check_call(
+                        "mv %s/overview.xml %s" %
+                        (processing_dir, output_dir), shell=True)
+                    log.info("Transferred XML file from Beeond to BeeGFS")
+                except Exception as error:
+                    log.error(error)
 
             dp = dict(
                 type="peasoup_xml",
@@ -300,6 +306,9 @@ def peasoup_pipeline(data):
             output_dps.append(dp)
 
             # Update xml to MongoDB
+            # NOTE: Mongo updates currently disabled due to issues with the mongo
+            # instance running on APSUSE.
+            """
             client = MongoClient(
                 'mongodb://{}:{}@10.98.76.190:30003/'.format(
                     os.environ['MONGO_USERNAME'].strip('\n'),
@@ -311,6 +320,7 @@ def peasoup_pipeline(data):
                         "/overview.xml",
                         "rb").read()))
             client.trapum.peasoup_xml_files.update(doc, doc, True)
+            """
     return output_dps
 
 

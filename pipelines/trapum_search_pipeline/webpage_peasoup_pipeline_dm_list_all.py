@@ -218,10 +218,13 @@ def peasoup_pipeline(data):
 
             fscrunch = processing_args.get("fscrunch", 1)
             tscrunch = processing_args.get("tscrunch", 1)
+            tscrunch_arg = "" if tscrunch == 1 else " -t {} ".format(tscrunch)
+            fscrunch_arg = "" if fscrunch == 1 else " -f {} ".format(fscrunch)
+
             merged_file = "%s/temp_merge_p_id_%d.fil" % (
                 processing_dir, processing_id)
-            digifil_script = "digifil %s -b 8 -threads 15 -o %s -f %d -t %d" % (
-                all_files, merged_file, fscrunch, tscrunch)
+            digifil_script = "digifil %s -b 8 -threads 15 -o %s %s %s" % (
+                all_files, merged_file, fscrunch_arg, tscrunch_arg)
             print(digifil_script)
             merge_filterbanks(digifil_script, merged_file)
 

@@ -200,8 +200,7 @@ def peasoup_pipeline(data):
             all_files = ' '.join(dp_list)
 
             # Check for temporary file storage
-            # TEMP DISABLED: 
-            if processing_args['temp_filesystem'] == 'XXX/beeond/XXX':
+            if processing_args['temp_filesystem'] == '/beeond/':
                 log.info("Running on Beeond")
                 processing_dir = '/beeond/PROCESSING/TEMP/%d' % processing_id
                 try:

@@ -165,6 +165,10 @@ def generate_birdie_list(birdie_csv):
         log.error(error)
 
 
+def get_expected_merge_length(filterbanks):
+    return sum([get_fil_dict(fname)['nsamples'] for fname in filterbanks])
+
+
 def peasoup_pipeline(data):
 
     output_dps = []
@@ -223,13 +227,21 @@ def peasoup_pipeline(data):
 
             merged_file = "%s/temp_merge_p_id_%d.fil" % (
                 processing_dir, processing_id)
-            digifil_script = "digifil %s -b 8 -threads 15 -o %s %s %s" % (
+            digifil_script = "digifil %s -b 8 -threads 4 -o %s %s %s" % (
                 all_files, merged_file, fscrunch_arg, tscrunch_arg)
+
+            expected_merge_length = get_expected_merge_length(all_files)
+            log.info("Expected merge length: {} samples".format(
+                expected_merge_length))
             print(digifil_script)
             merge_filterbanks(digifil_script, merged_file)
 
             # Get header of merged file
             filterbank_header = get_fil_dict(merged_file)
+            if filterbank_header['nsamples'] != expected_merge_length:
+                log.error("Merged file has unexpected length of {} samples, expected {} samples".format(
+                    filterbank_header['nsamples'], expected_merge_length))
+                raise Exception("Incorrect merged file length, failure in digifil processing")
 
             # IQR
             processing_args['tsamp'] = float(filterbank_header['tsamp'])
@@ -237,6 +249,11 @@ def peasoup_pipeline(data):
             iqred_file = iqr_filter(
                 merged_file, processing_args, processing_dir)
             remove_temporary_files([merged_file])
+            iqred_header = get_fil_dict(iqred_file)
+            if iqred_header['nsamples'] != expected_merge_length:
+                log.error("IQRM file has unexpected length of {} samples, expected {} samples".format(
+                    iqred_header['nsamples'], expected_merge_length))
+                raise Exception("Incorrect merged file length, failure in IQRM processing")
 
             # Determine fft_size
             if processing_args['fft_length'] == 0:
@@ -268,7 +285,10 @@ def peasoup_pipeline(data):
 
             # Initialise peasoup script
             peasoup_script = "peasoup -k chan_mask_peasoup -z trapum.birdies  -i %s --ram_limit_gb %f --dm_file %s --limit %d  -n %d  -m %.2f  --acc_start %.2f --acc_end %.2f  --fft_size %d -o %s" % (
-                iqred_file, ram_limit, dm_list_name, processing_args['candidate_limit'], int(processing_args['nharmonics']), processing_args['snr_threshold'], processing_args['start_accel'], processing_args['end_accel'], fft_size, processing_dir)
+                iqred_file, ram_limit, dm_list_name, processing_args['candidate_limit'],
+                int(processing_args['nharmonics']), processing_args['snr_threshold'],
+                processing_args['start_accel'], processing_args['end_accel'], fft_size,
+                processing_dir)
 
             call_peasoup(peasoup_script)
 

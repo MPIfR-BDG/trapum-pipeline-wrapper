@@ -3,10 +3,13 @@ import sys
 import time
 import pika
 import logging
+import json
 
 log = logging.getLogger('pika_wrapper')
 FORMAT = "[%(levelname)s - %(asctime)s - %(filename)s:%(lineno)s] %(message)s"
 logging.basicConfig(format=FORMAT)
+
+DEFAULT_RETRIES = 3
 
 
 class PikaChannel(object):
@@ -75,10 +78,21 @@ class PikaProcess(object):
             channel.basic_publish(exchange='', routing_key=self._success_q_params["queue"], body=message,
                                   properties=pika.BasicProperties(delivery_mode = 2, priority=0))
 
-    def _send_fail_message(self, message):
-        with self._channel_manager as channel:
-            channel.basic_publish(exchange='', routing_key=self._fail_q_params["queue"], body=message,
-                                  properties=pika.BasicProperties(delivery_mode = 2, priority=0))
+    def _send_fail_message(self, message, error=None):
+        data = json.loads(message)
+        if "processing_attemps" in data:
+            data["processing_attemps"] += 1
+        else:
+            data["processing_attemps"] = 1
+        data["last_error"] = str(error)
+        message = json.dumps(data)
+        retry_limit = data.get("max_retries", DEFAULT_RETRIES)
+        if data["processing_attemps"] > retry_limit:
+            with self._channel_manager as channel:
+                channel.basic_publish(exchange='', routing_key=self._fail_q_params["queue"], body=message,
+                                      properties=pika.BasicProperties(delivery_mode = 2, priority=0))
+        else:
+            self._return_to_input(message)
 
     def _return_to_input(self, message):
         with self._channel_manager as channel:
@@ -101,7 +115,7 @@ class PikaProcess(object):
                     message_handler(message)
                 except Exception as error:
                     log.exception("Message handler failure")
-                    self._send_fail_message(message)
+                    self._send_fail_message(message, error)
                 else:
                     log.info("Message successfully processed")
                     self._send_success_message(message)
@@ -209,18 +223,16 @@ def test_process(pika_process):
     """
     def handler(message):
         log.info("Handler received message: {}".format(message))
-        time.sleep(1000000)
+        time.sleep(10)
     pika_process.process(handler)
 
 
 if __name__ == "__main__":
     from optparse import OptionParser
     parser = OptionParser()
-    #add_pika_process_opts(parser)
-    add_pika_producer_opts(parser)
+    process = pika_process_from_opts(parser)
     opts, args = parser.parse_args()
-    #process = pika_process_from_opts(opts)
-    #test(process)
+    test_process(process)
     producer = pika_producer_from_opts(opts)
     producer.publish(["these are a","few messages"])
 

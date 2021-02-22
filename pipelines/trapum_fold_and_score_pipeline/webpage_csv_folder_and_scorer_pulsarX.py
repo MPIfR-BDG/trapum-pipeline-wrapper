@@ -77,7 +77,7 @@ def generate_pulsarX_cand_file(
 
     cand_file_path = '%s/%s_%s_cands.txt' % (tmp_dir, beam_name, utc_name)
     source_name_prefix = "%s_%s" % (beam_name, utc_name)
-    with open(cand_file_path, 'a') as f:
+    with open(cand_file_path, 'w') as f:
         f.write("#id DM accel F0 F1 S/N\n")
         for i in range(len(cand_mod_periods)):
             f.write(
@@ -415,3 +415,4 @@ if __name__ == "__main__":
     processor.process(pipeline_wrapper.on_receive)
 
     get_params_from_csv_and_fold(opts)
+

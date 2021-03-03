@@ -113,8 +113,10 @@ def decide_fft_size(filterbank_header):
 def get_fil_dict(input_file):
     filterbank_info = header_util.parseSigprocHeader(input_file)
     filterbank_stats = header_util.updateHeader(filterbank_info)
-
     return filterbank_stats
+
+def get_expected_merge_length(filterbanks):
+    return sum([get_fil_dict(fname)['nsamples'] for fname in filterbanks])
 
 # process_manager = PikaProcess(...)
 # pipeline_wrapper = TrapumPipelineWrapper(..., null_pipeline)
@@ -163,6 +165,10 @@ def subband_pipeline(data):
             digifil_script = "digifil %s -b 8 -threads 15 -o %s" % (
                 all_files, merged_file)
 
+            expected_merge_length = get_expected_merge_length(dp_list)
+            log.info("Expected merge length: {} samples".format(
+                expected_merge_length))
+
             if os.path.isfile(merged_file):
                 if abs(os.stat(merged_file).st_size - expected_merged_size) < SIZE_MARGIN:
                     log.info("Found merged file that is of the expected size, using that")
@@ -172,6 +178,14 @@ def subband_pipeline(data):
             else:
                 log.info("No prior merged file found")
                 merge_filterbanks(digifil_script, merged_file)
+
+            # Get header of merged file
+            filterbank_header = get_fil_dict(merged_file)
+            if filterbank_header['nsamples'] != expected_merge_length:
+                log.error("Merged file has unexpected length of {} samples, expected {} samples".format(
+                    filterbank_header['nsamples'], expected_merge_length))
+                raise Exception("Incorrect merged file length, failure in digifil processing")
+
 
             # Get header of merged file
             filterbank_header = get_fil_dict(merged_file)
@@ -192,9 +206,14 @@ def subband_pipeline(data):
                 log.info("No prior iqred_file file found")
                 iqred_file = iqr_filter(merged_file, processing_args, output_dir)
 
+            iqred_header = get_fil_dict(iqred_file)
+            if iqred_header['nsamples'] != expected_merge_length:
+                log.error("IQRM file has unexpected length of {} samples, expected {} samples".format(
+                    iqred_header['nsamples'], expected_merge_length))
+                raise Exception("Incorrect merged file length, failure in IQRM processing")
+
             # Subband the file
             subbanded_file = subband_fil(iqred_file, processing_args)
-
             # Update telescope id of subbanded file
             update_telescope_id(subbanded_file)
 

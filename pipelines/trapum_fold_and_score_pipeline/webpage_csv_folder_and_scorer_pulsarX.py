@@ -75,7 +75,7 @@ def generate_pulsarX_cand_file(
         cand_accs,
         cand_snrs):
 
-    cand_file_path = '%s/%s_%s_cands.txt' % (tmp_dir, beam_name, utc_name)
+    cand_file_path = '%s/%s_%s_cands.candfile' % (tmp_dir, beam_name, utc_name)
     source_name_prefix = "%s_%s" % (beam_name, utc_name)
     with open(cand_file_path, 'w') as f:
         f.write("#id DM accel F0 F1 S/N\n")
@@ -126,6 +126,19 @@ def convert_to_std_format(ra, dec):
 
     return ra_coord, dec_coord
 
+def get_obs_length(filterbanks):
+    return sum([get_fil_dict(fname)['tobs']* for fname in filterbanks])
+
+def parse_cuts(cuts, tobs):
+    if ":" not in cuts:
+        return float(cuts)
+    else:
+        for cut in cuts.split(","):
+            low,high,value = list(map(float, cut.split(":")))
+            if tobs >= low and tobs < high:
+        return value
+    else:
+        return None
 
 def fold_and_score_pipeline(data):
     '''
@@ -192,6 +205,10 @@ def fold_and_score_pipeline(data):
                 (beam_ID, processing_args['snr_cutoff']))
             snr_cut_cands = df[df['snr'] > float(
                 processing_args['snr_cutoff'])]
+            period_cuts = processing_args.get('period_cutoffs',"0:inf:0.0000000001")
+            obs_length = get_obs_length(input_fil_list)
+            period_cut = parse_cuts(period_cuts, obs_length)
+            snr_cut_cands = snr_cut_cands[snr_cut_cands['period'] > period_cut]
             single_beam_cands = snr_cut_cands[snr_cut_cands['beam_id'] == beam_ID]
             single_beam_cands.sort_values('snr', inplace=True, ascending=False)
 

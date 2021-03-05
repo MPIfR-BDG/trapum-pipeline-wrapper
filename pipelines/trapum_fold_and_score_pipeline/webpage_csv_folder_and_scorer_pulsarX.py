@@ -15,6 +15,7 @@ from multiprocessing.pool import ThreadPool
 import numpy as np
 import pandas as pd
 import xml.etree.ElementTree as ET
+import parseheader
 from trapum_pipeline_wrapper import TrapumPipelineWrapper
 
 
@@ -128,6 +129,11 @@ def convert_to_std_format(ra, dec):
 
 def get_obs_length(filterbanks):
     return sum([get_fil_dict(fname)['tobs'] for fname in filterbanks])
+
+def get_fil_dict(input_file):
+    filterbank_info = parseheader.parseSigprocHeader(input_file)
+    filterbank_stats = parseheader.updateHeader(filterbank_info)
+    return filterbank_stats
 
 def parse_cuts(cuts, tobs):
     if ":" not in cuts:

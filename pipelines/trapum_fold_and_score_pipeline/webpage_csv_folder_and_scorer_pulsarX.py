@@ -137,8 +137,8 @@ def parse_cuts(cuts, tobs):
             low,high,value = list(map(float, cut.split(":")))
             if tobs >= low and tobs < high:
                 return value
-    else:
-        return 0.0
+        else:
+            return 0.0
 
 def fold_and_score_pipeline(data):
     '''

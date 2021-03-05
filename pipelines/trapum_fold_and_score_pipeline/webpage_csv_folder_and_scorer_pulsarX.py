@@ -127,7 +127,7 @@ def convert_to_std_format(ra, dec):
     return ra_coord, dec_coord
 
 def get_obs_length(filterbanks):
-    return sum([get_fil_dict(fname)['tobs']* for fname in filterbanks])
+    return sum([get_fil_dict(fname)['tobs'] for fname in filterbanks])
 
 def parse_cuts(cuts, tobs):
     if ":" not in cuts:

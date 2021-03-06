@@ -127,13 +127,16 @@ def convert_to_std_format(ra, dec):
 
     return ra_coord, dec_coord
 
+
 def get_obs_length(filterbanks):
     return sum([get_fil_dict(fname)['tobs'] for fname in filterbanks])
+
 
 def get_fil_dict(input_file):
     filterbank_info = parseheader.parseSigprocHeader(input_file)
     filterbank_stats = parseheader.updateHeader(filterbank_info)
     return filterbank_stats
+
 
 def parse_cuts(cuts, tobs):
     if ":" not in cuts:
@@ -145,6 +148,7 @@ def parse_cuts(cuts, tobs):
                 return value
         else:
             return 0.0
+
 
 def fold_and_score_pipeline(data):
     '''
@@ -211,29 +215,20 @@ def fold_and_score_pipeline(data):
                 (beam_ID, processing_args['snr_cutoff']))
             snr_cut_cands = df[df['snr'] > float(
                 processing_args['snr_cutoff'])]
-            period_cuts = processing_args.get('period_cutoffs',"0:inf:0.0000000001")
+            period_cuts = processing_args.get('period_cutoffs', "0:inf:0.0000000001")
             obs_length = get_obs_length(input_fil_list)
+            log.info("Parsing period cuts: {}".format(period_cuts))
             period_cut = parse_cuts(period_cuts, obs_length)
+            log.info("Selecting periods above {} seconds".format(period_cut))
             snr_cut_cands = snr_cut_cands[snr_cut_cands['period'] > period_cut]
             single_beam_cands = snr_cut_cands[snr_cut_cands['beam_id'] == beam_ID]
             single_beam_cands.sort_values('snr', inplace=True, ascending=False)
+            log.info("Found {} candidates to fild".format(len(single_beam_cands)))
+            print(single_beam_cands)
 
             # If no candidates found in this beam, skip to next message
             if single_beam_cands.shape[0] == 0:
-                # Something better ?
-                log.info(
-                    "No candidates found for this beam. Skipping to next message")
-                dp = dict(
-                    type="no_candidate_statement",
-                    filename="invalid",
-                    directory="invalid",
-                    beam_id=beam_ID,
-                    pointing_id=pointing["id"],
-                    metainfo=json.dumps("no_candidate_for_beam")
-                )
-
-                output_dps.append(dp)
-                return output_dps
+                raise Exception("No candidate found to fold")
 
             # Limit number of candidates to fold
             log.info(

@@ -125,9 +125,15 @@ def generate_chan_mask(chan_mask_csv, filterbank_header):
     nchans = filterbank_header['nchans']
     chan_mask = np.ones(nchans)
     for val in chan_mask_csv.split(','):
-        rstart = float(val.split(":")[0])
-        rend = float(val.split(":")[1])
-
+        if len(val.split(":")) == 1:
+            rstart = float(val)
+            rend = float(val)
+        elif len(val.split(":")) == 2:
+            rstart = float(val.split(":")[0])
+            rend = float(val.split(":")[1])
+        else:
+            log.warning("Could not understand mask entry: {}".format(val))
+            continue
         # start_chan_mask = int((start_freq_mask - fbottom) *
         #                              nchans / (ftop - fbottom))
 
@@ -153,8 +159,15 @@ def generate_birdie_list(birdie_csv):
     birdies = []
     birdies_width = []
     for val in birdie_csv.split(','):
-        birdies.append(val.split(":")[0])
-        birdies_width.append(val.split(":")[1])
+        try:
+            f = val.split(":")[0]
+            w = val.split(":")[1]
+        except Exception:
+            log.warning("Could not parse birdie list entry: {}".format(val))
+            continue
+        else:
+            birdies.append(f)
+            birdies_width.append(w)
     try:
         np.savetxt(
             'trapum.birdies', np.c_[

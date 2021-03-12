@@ -230,7 +230,7 @@ def peasoup_pipeline(data):
             digifil_script = "digifil %s -b 8 -threads 4 -o %s %s %s" % (
                 all_files, merged_file, fscrunch_arg, tscrunch_arg)
 
-            expected_merge_length = get_expected_merge_length(dp_list)
+            expected_merge_length = get_expected_merge_length(dp_list) / tscrunch
             log.info("Expected merge length: {} samples".format(
                 expected_merge_length))
             print(digifil_script)

@@ -39,9 +39,12 @@ def iqr_filter(merged_file, processing_args, output_dir):  # add tsamp,nchans to
 
 
 def subband_fil(merged_file, processing_args):
+    fscrunch = processing_args.get('fscrunch', 16)
+    tscrunch = processing_args.get('tscrunch', 1)
+
     subbanded_file = merged_file[:-4] + '_sub.fil'
-    subband_script = "ft_scrunch_threads  -d %.2f -t 4 -B 64 --no-refdm -c %d %s %s" % (
-        float(processing_args['refdm']), processing_args['fscrunch'], merged_file, subbanded_file)
+    subband_script = "ft_scrunch_threads  -d %.2f -t 4 -B 64 --no-refdm -c %d -s %d %s %s" % (
+        float(processing_args['refdm']), fscrunch, tscrunch, merged_file, subbanded_file)
     log.info("Script that will be run..")
     log.info(subband_script)
     # time.sleep(5)

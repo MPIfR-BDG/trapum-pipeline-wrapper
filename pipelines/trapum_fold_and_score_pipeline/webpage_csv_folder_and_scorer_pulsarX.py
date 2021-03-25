@@ -24,6 +24,7 @@ FORMAT = "[%(levelname)s - %(asctime)s - %(filename)s:%(lineno)s] %(message)s"
 logging.basicConfig(format=FORMAT)
 log.setLevel('INFO')
 
+TEMPLATE = "/home/psr/software/PulsarX/include/template/meerkat_fold.template"
 
 def make_tarfile(output_path, input_path, name):
     with tarfile.open(output_path + '/' + name, "w:gz") as tar:
@@ -163,6 +164,8 @@ def fold_and_score_pipeline(data):
     output_dir = data['base_output_dir']
     processing_id = data['processing_id']
 
+    os.environ["OMP_NUM_THREADS"] = "1"
+
     # Make output dir
     try:
         subprocess.check_call("mkdir -p %s" % (output_dir), shell=True)
@@ -297,43 +300,36 @@ def fold_and_score_pipeline(data):
             zap_string = ""
             if cmask is not None:
                 cmask = cmask.strip()
-                try:
-                    zap_string = " ".join(["--rfi zap {} {}".format(
-                        *i.split(":")) for i in cmask.split(",")])
-                except Exception as error:
-                    raise Exception("Unable to parse channel mask: {}".format(
-                        str(error)))
+                if cmask:
+                    try:
+                        zap_string = " ".join(["--rfi zap {} {}".format(
+                            *i.split(":")) for i in cmask.split(",")])
+                    except Exception as error:
+                        raise Exception("Unable to parse channel mask: {}".format(
+                            str(error)))
 
-            nbins = processing_args.get("nbins", 32)
+            fast_nbins = processing_args.get("fast_nbins", 64)    # Nbins for candidates < 100 ms
+            slow_nbins = processing_args.get("slow_nbins", 128)   # Nbins for candidates > 100 ms
+            nbins_string = "-b {} --nbinplan 0.1 {}".format(fast_nbins, slow_nbins)
             subint_length = processing_args.get("subint_length", 10.0)
             nsubband = processing_args.get("nsubband", 64)
+
+            if 'ifbf' in beam_name:
+                beam_tag = "--incoherent"
+            elif 'cfbf' in beam_name:
+                beam_tag = "-i {}".format(int(beam_name.strip("cfbf")))
+            else:
+                log.warning("Invalid beam name. Folding with default beam name")
+                beam_tag = ""
+
+            script = "psrfold_fil -v -t 12 --candfile {} -n {} {} {} --template {} --clfd 2.0 -L {} -f {} --rfi zdot {}".format(
+                        pred_file, nsubband, nbins_string, beam_tag, TEMPLATE, subint_length, input_filenames, zap_string)
+            log.info(script)
             try:
-                if 'ifbf' in beam_name:  # Decide beam name in output
-                    script = "psrfold_fil -v -t 12 --candfile %s -n %d -b %d --incoherent --template /home/psr/software/PulsarX/include/template/meerkat_fold.template --clfd 2.0 -L %d -f %s %s" % (
-                        pred_file, nsubband, nbins, subint_length, input_filenames, zap_string)
-                    log.info(script)
-                    subprocess.check_call(script, shell=True, cwd=tmp_dir)
-                    log.info("PulsarX folding successful")
-
-                elif 'cfbf' in beam_name:
-                    beam_no = int(beam_name.strip("cfbf"))
-                    script = "psrfold_fil -v -t 12 --candfile %s -n %d -b %d -i %d --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L %d --clfd 2.0 -f %s %s" % (
-                        pred_file, nsubband, nbins, beam_no, subint_length, input_filenames, zap_string)
-                    log.info(script)
-                    subprocess.check_call(script, shell=True, cwd=tmp_dir)
-                    log.info("PulsarX folding successful")
-
-                else:
-                    log.info("Invalid beam name. Folding with default beam name")
-                    script = "psrfold_fil -v -t 12 --candfile %s -n %d -b %d  --template /home/psr/software/PulsarX/include/template/meerkat_fold.template -L %d --clfd 2.0 -f %s %s" % (
-                        pred_file, nsubband, nbins, subint_length, input_filenames, zap_string)
-                    log.info(script)
-                    subprocess.check_call(script, shell=True, cwd=tmp_dir)
-                    log.info("PulsarX folding successful")
-
+                subprocess.check_call(script, shell=True, cwd=tmp_dir)
             except Exception as error:
-                log.error(error)
-                log.error("PulsarX failed")
+                raise error
+            log.info("PulsarX folding successful")
 
             log.info("Folding done for all candidates. Scoring all candidates...")
             subprocess.check_call(

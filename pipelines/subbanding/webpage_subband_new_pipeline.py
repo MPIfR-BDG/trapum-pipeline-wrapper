@@ -229,7 +229,8 @@ def subband_pipeline(data):
             subband_header = get_fil_dict(subbanded_file)
 
             # Args for database updation
-            sampling_number = int(round(processing_args['tsamp'] * 1e6))
+            tscrunch = processing_args.get('tscrunch', 1)
+            sampling_number = int(round(processing_args['tsamp'] * 1e6 * tscrunch))
             ref_dm = processing_args['refdm']
             new_chans = int(
                 processing_args['nchans'] /

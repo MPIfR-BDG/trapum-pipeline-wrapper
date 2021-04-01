@@ -312,6 +312,8 @@ def peasoup_pipeline(data):
             if fft_size > 201326592:
                 fft_size = 201326592  # Hard coded for max limit - tmp assuming 4hr, 76 us and 4k chans
 
+            log.info("Chose FFT length of {}".format(fft_size))
+
             # Determine channel mask to use
             chan_mask_csv = processing_args['channel_mask']
             peasoup_chan_mask = generate_chan_mask(
@@ -324,8 +326,11 @@ def peasoup_pipeline(data):
             # Set RAM limit
             ram_limit = processing_args['ram_limit']
 
+            log.info("Starting loop over DDPlan")
             for dm_range in ddplan:
+                log.info(dm_range)
                 if dm_range.tscrunch != 1:
+                    log.info("Tscrunch != 1: Executing scrunch")
                     base, ext = os.path.splitext(iqred_file)
                     search_file = "{}_t{}{}".format(base, dm_range.tscrunch, ext)
                     digifil_script = "digifil {} -b 8 -threads 4 -o {} -t ".format(
@@ -333,7 +338,7 @@ def peasoup_pipeline(data):
                     merge_filterbanks(digifil_script, search_file)
                 else:
                     search_file = iqred_file
-
+                log.info("Searching file: {}".format(search_file))
                 # Generate actual dm list file
                 dm_csv = "{}:{}:{}".format(dm_range.low_dm, dm_range.high_dm, dm_range.dm_step)
                 dm_list = sorted(list(set(list(slices(dm_csv)))))
@@ -348,7 +353,7 @@ def peasoup_pipeline(data):
 
                 # Initialise peasoup script
                 peasoup_script = "peasoup -k chan_mask_peasoup -z trapum.birdies  -i %s --ram_limit_gb %f --dm_file %s --limit %d  -n %d  -m %.2f --acc_start %.2f --acc_end %.2f --fft_size %d -o %s" % (
-                    iqred_file, ram_limit, dm_list_name, processing_args['candidate_limit'],
+                    search_file, ram_limit, dm_list_name, processing_args['candidate_limit'],
                     int(processing_args['nharmonics']), processing_args['snr_threshold'],
                     processing_args['start_accel'], processing_args['end_accel'], curr_fft_size,
                     subdir)

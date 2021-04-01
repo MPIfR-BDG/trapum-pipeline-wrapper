@@ -333,8 +333,8 @@ def peasoup_pipeline(data):
                     log.info("Tscrunch != 1: Executing scrunch")
                     base, ext = os.path.splitext(iqred_file)
                     search_file = "{}_t{}{}".format(base, dm_range.tscrunch, ext)
-                    digifil_script = "digifil {} -b 8 -threads 4 -o {} -t ".format(
-                        iqred_file, search_file)
+                    digifil_script = "digifil {} -b 8 -threads 4 -o {} -t {}".format(
+                        iqred_file, search_file, dm_range.tscrunch)
                     merge_filterbanks(digifil_script, search_file)
                 else:
                     search_file = iqred_file

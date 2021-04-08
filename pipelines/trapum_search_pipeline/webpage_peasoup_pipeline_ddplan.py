@@ -436,6 +436,3 @@ if __name__ == '__main__':
     processor = pika_wrapper.pika_process_from_opts(opts)
     pipeline_wrapper = TrapumPipelineWrapper(opts, peasoup_pipeline)
     processor.process(pipeline_wrapper.on_receive)
-
-
-    python3.6 webpage_peasoup_pipeline_ddplan.py -H 10.98.76.200 -p 31861 --input=peasoup_ddplan_20210401 --success=peasoup_ddplan_20210401-success --fail=peasoup_ddplan_20210401-fail

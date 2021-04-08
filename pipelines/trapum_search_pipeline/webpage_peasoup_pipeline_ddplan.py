@@ -387,6 +387,7 @@ def peasoup_pipeline(data):
                                 subdir, output_dir, new_filename),
                             shell=True)
                         log.info("Transferred XML file from Beeond to BeeGFS")
+                        os.rmdir(subdir)
                     except Exception as error:
                         log.error(error)
 
@@ -418,6 +419,9 @@ def peasoup_pipeline(data):
                         "rb").read()))
             client.trapum.peasoup_xml_files.update(doc, doc, True)
             """
+            if processing_args['temp_filesystem'] == '/beeond/':
+                os.rmdir(processing_dir)
+
     return output_dps
 
 
@@ -432,3 +436,6 @@ if __name__ == '__main__':
     processor = pika_wrapper.pika_process_from_opts(opts)
     pipeline_wrapper = TrapumPipelineWrapper(opts, peasoup_pipeline)
     processor.process(pipeline_wrapper.on_receive)
+
+
+    python3.6 webpage_peasoup_pipeline_ddplan.py -H 10.98.76.200 -p 31861 --input=peasoup_ddplan_20210401 --success=peasoup_ddplan_20210401-success --fail=peasoup_ddplan_20210401-fail

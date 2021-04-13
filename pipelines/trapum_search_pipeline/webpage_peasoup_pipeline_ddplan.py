@@ -223,11 +223,15 @@ def peasoup_pipeline(data):
     processing_args = data['processing_args']
     output_dir = data['base_output_dir']
     # Make output dir
+    log.info("Making directory: {}".format(output_dir))
     try:
         subprocess.check_call("mkdir -p %s" % (output_dir), shell=True)
-    except BaseException:
-        log.warning("Subdirectory {} already exists".format(output_dir))
-        pass
+    except Exception as error:
+        log.error("Error making subdir {}".format(output_dir))
+        raise error
+    else:
+        log.info("Making directory: {}".format(output_dir))
+
 
     # To avoid core dump related interruptions
     try:

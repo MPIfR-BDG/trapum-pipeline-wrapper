@@ -9,6 +9,7 @@ import subprocess
 import itertools
 import logging
 import sys
+import glob
 import pika_wrapper
 from trapum_pipeline_wrapper import TrapumPipelineWrapper
 import time
@@ -73,12 +74,25 @@ def candidate_filter_pipeline(data):
             log.info("Already made subdirectory")
             pass
 
+        # Copy all XML files to a common directory
+        # add UID to avoid name conflicts
+        xml_dir = '/beeond/PROCESSING/TEMP/{}/xmls/'.format(processing_id)
+        shutil.rmtree(xml_dir, ignore_errors=True)
+        try:
+            subprocess.check_call("mkdir -p %s" % (xml_dir), shell=True)
+        except BaseException:
+            log.info("Already made subdirectory")
+            pass 
+
+        for ii, xml_file in enumerate(xml_list):
+            log.info("Copying {} to temp XML dir".format(xml_file))
+            shutil.copy2(xml_file, "{}/{:06d}.xml".format(xml_dir, ii))
+        xml_list = sorted(glob.glob("{}/*.xml".format(xml_dir)))
         # Run the candidate filtering code
         try:
-            xml_list2 = ','.join(xml_list)
             subprocess.check_call(
                 "candidate_filter.py -i %s -o %s/%d -c /home/psr/software/candidate_filter/candidate_filter/default_config.json --rfi /home/psr/software/candidate_filter/candidate_filter/known_rfi.txt --p_tol %f --dm_tol %f" %
-                (xml_list2, tmp_dir, processing_id, processing_args['p_tol'], processing_args['dm_tol']), shell=True)
+                (xml_dir, tmp_dir, processing_id, processing_args['p_tol'], processing_args['dm_tol']), shell=True)
             log.info("Filtered csvs have been written")
         except Exception as error:
             log.error(error)

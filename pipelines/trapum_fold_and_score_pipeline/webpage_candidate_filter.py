@@ -82,7 +82,7 @@ def candidate_filter_pipeline(data):
             subprocess.check_call("mkdir -p %s" % (xml_dir), shell=True)
         except BaseException:
             log.info("Already made subdirectory")
-            pass 
+            pass
 
         for ii, xml_file in enumerate(xml_list):
             log.info("Copying {} to temp XML dir".format(xml_file))
@@ -99,6 +99,8 @@ def candidate_filter_pipeline(data):
 
         # Apply SNR cut and insert beam ID in good cands to fold csv file for
         # later reference
+
+        shutil.rmtree(xml_dir, ignore_errors=True)
 
         df = pd.read_csv(
             '%s/%d_good_cands_to_fold.csv' %

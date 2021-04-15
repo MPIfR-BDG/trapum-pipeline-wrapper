@@ -247,7 +247,7 @@ def fold_and_score_pipeline(data):
                 single_beam_cands_fold_limited = single_beam_cands
 
 
-            nperbatch = processing_args['batch_size']
+            nperbatch = processing_args.get('batch_size', 100)
             for batch_start in range(0,num_cands_total,nperbatch): #single_beam_cands.shape[0],nperbatch):
                 batch_stop = min(batch_start+nperbatch,num_cands_total)
                 single_beam_cands_fold_limited = single_beam_cands[batch_start:batch_stop]

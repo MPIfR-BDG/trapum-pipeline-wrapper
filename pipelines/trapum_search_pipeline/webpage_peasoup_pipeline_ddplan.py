@@ -379,16 +379,15 @@ def peasoup_pipeline(data):
                 new_filename = "overview_dm_{:03f}_{:03f}.xml".format(
                     dm_range.low_dm, dm_range.high_dm)
 
-                # Transfer files to output directory if process ran on Beeond
-                if processing_args['temp_filesystem'] == '/beeond/':
-                    try:
-                        subprocess.check_call(
-                            "mv {}/overview.xml {}/{}".format(
-                                subdir, output_dir, new_filename),
-                            shell=True)
-                        log.info("Transferred XML file from Beeond to BeeGFS")
-                    except Exception as error:
-                        log.error(error)
+                # Transfer files to output directory
+                try:
+                    subprocess.check_call(
+                        "mv {}/overview.xml {}/{}".format(
+                            subdir, output_dir, new_filename),
+                        shell=True)
+                    log.info("Transferred XML file from Beeond to BeeGFS")
+                except Exception as error:
+                    log.error(error)
 
                 dp = dict(
                     type="peasoup_xml",

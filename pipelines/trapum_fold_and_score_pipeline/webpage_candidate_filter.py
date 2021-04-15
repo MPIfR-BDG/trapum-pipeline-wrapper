@@ -56,7 +56,7 @@ def candidate_filter_pipeline(data):
         pass
     processing_id = data['processing_id']
 
-   # Get an xml list per pointing
+    # Get an xml list per pointing
     for pointing in data["data"]["pointings"]:
         xml_list = []
         beam_id_list = []
@@ -73,12 +73,16 @@ def candidate_filter_pipeline(data):
             log.info("Already made subdirectory")
             pass
 
+        xml_list_file = "{}/xml_list".format(tmp_dir)
+        with open(xml_list_file, "w") as f:
+            for fname in xml_list:
+                f.write("{}\n".format(fname))
+
         # Run the candidate filtering code
         try:
-            xml_list2 = ','.join(xml_list)
             subprocess.check_call(
                 "candidate_filter.py -i %s -o %s/%d -c /home/psr/software/candidate_filter/candidate_filter/default_config.json --rfi /home/psr/software/candidate_filter/candidate_filter/known_rfi.txt --p_tol %f --dm_tol %f" %
-                (xml_list2, tmp_dir, processing_id, processing_args['p_tol'], processing_args['dm_tol']), shell=True)
+                (xml_list_file, tmp_dir, processing_id, processing_args['p_tol'], processing_args['dm_tol']), shell=True)
             log.info("Filtered csvs have been written")
         except Exception as error:
             log.error(error)

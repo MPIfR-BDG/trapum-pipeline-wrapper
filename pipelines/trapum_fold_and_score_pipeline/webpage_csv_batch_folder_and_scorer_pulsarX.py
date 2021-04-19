@@ -351,7 +351,7 @@ def fold_and_score_pipeline(data):
                     cand_id = int(ar.split('_')[-1].rstrip('.ar'))
                     cand_id += batch_start
                     out_ar = '_'.join(ar.split('_')[:-1]) + '_{0:05d}.ar'.format(cand_id)
-                    out_ar = out_ar.replace('J0000-00',processing_id)
+                    out_ar = out_ar.replace('J0000-00', str(processing_id))
                     os.rename(ar,out_ar)
 
                 png_files = glob.glob('{}/J0000-00*.png'.format(tmp_dir))
@@ -359,14 +359,14 @@ def fold_and_score_pipeline(data):
                     cand_id = int(png.split('_')[-1].rstrip('.png'))
                     cand_id += batch_start
                     out_png = '_'.join(png.split('_')[:-1]) + '_{0:05d}.png'.format(cand_id)
-                    out_png = out_png.replace('J0000-00',processing_id)
+                    out_png = out_png.replace('J0000-00', str(processing_id))
                     os.rename(png,out_png)
 
                 old_cand_file = glob.glob('{}/J0000-00*.cands'.format(tmp_dir))[0]
-                new_cand_file = old_cand_file.replace('J0000-00',processing_id)
-                new_cand_file= new_cand_file.rstrip('.cands')+'_{0:05d}_{1:05d}.cands'.format(batch_start,batch_stop-1)
-                
-                os.rename(old_cand_file,new_cand_file)                    
+                new_cand_file = old_cand_file.replace('J0000-00', str(processing_id))
+                new_cand_file= new_cand_file.rstrip('.cands')+'_{0:05d}_{1:05d}.cands'.format(batch_start, batch_stop-1)
+
+                os.rename(old_cand_file,new_cand_file)
 
             log.info("PulsarX folding successful")
 

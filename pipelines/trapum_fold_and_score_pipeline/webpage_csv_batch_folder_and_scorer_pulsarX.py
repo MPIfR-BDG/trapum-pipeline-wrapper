@@ -334,7 +334,7 @@ def fold_and_score_pipeline(data):
                     log.warning("Invalid beam name. Folding with default beam name")
                     beam_tag = ""
 
-                script = "psrfold_fil -v -t 12 --candfile {} -n {} {} {} --template {} --clfd 2.0 -L {} -f {} --rfi zdot {}".format(
+                script = "psrfold_fil --plotx -v -t 12 --candfile {} -n {} {} {} --template {} --clfd 2.0 -L {} -f {} --rfi zdot {}".format(
                             pred_file, nsubband, nbins_string, beam_tag, TEMPLATE, subint_length, input_filenames, zap_string)
                 log.info(script)
                 try:
@@ -352,7 +352,7 @@ def fold_and_score_pipeline(data):
                     cand_id += batch_start
                     out_ar = '_'.join(ar.split('_')[:-1]) + '_{0:05d}.ar'.format(cand_id)
                     out_ar = out_ar.replace('J0000-00', str(processing_id))
-                    os.rename(ar,out_ar)
+                    os.rename(ar, out_ar)
 
                 png_files = glob.glob('{}/J0000-00*.png'.format(tmp_dir))
                 for png in png_files:
@@ -364,9 +364,9 @@ def fold_and_score_pipeline(data):
 
                 old_cand_file = glob.glob('{}/J0000-00*.cands'.format(tmp_dir))[0]
                 new_cand_file = old_cand_file.replace('J0000-00', str(processing_id))
-                new_cand_file= new_cand_file.rstrip('.cands')+'_{0:05d}_{1:05d}.cands'.format(batch_start, batch_stop-1)
+                new_cand_file = new_cand_file.rstrip('.cands')+'_{0:05d}_{1:05d}.cands'.format(batch_start, batch_stop-1)
 
-                os.rename(old_cand_file,new_cand_file)
+                os.rename(old_cand_file, new_cand_file)
 
             log.info("PulsarX folding successful")
 

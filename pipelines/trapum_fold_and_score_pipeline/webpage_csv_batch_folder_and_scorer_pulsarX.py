@@ -234,8 +234,6 @@ def fold_and_score_pipeline(data):
             # If no candidates found in this beam, skip to next message
             if single_beam_cands.shape[0] == 0:
                 raise Exception("No candidate found to fold")
-            num_cands_total = single_beam_cands.shape[0]
-
             # Limit number of candidates to fold
             log.info(
                 "Setting a maximum limit of %d candidates per beam" %
@@ -246,10 +244,10 @@ def fold_and_score_pipeline(data):
             else:
                 single_beam_cands_fold_limited = single_beam_cands
 
-
+            num_cands_total = single_beam_cands_fold_limited.shape[0]
             nperbatch = processing_args.get('batch_size', 100)
-            for batch_start in range(0,num_cands_total,nperbatch): #single_beam_cands.shape[0],nperbatch):
-                batch_stop = min(batch_start+nperbatch,num_cands_total)
+            for batch_start in range(0, num_cands_total, nperbatch): #single_beam_cands.shape[0],nperbatch):
+                batch_stop = min(batch_start+nperbatch, num_cands_total)
                 single_beam_cands_fold_limited = single_beam_cands[batch_start:batch_stop]
 
                 # Read parameters and fold
@@ -334,7 +332,7 @@ def fold_and_score_pipeline(data):
                     log.warning("Invalid beam name. Folding with default beam name")
                     beam_tag = ""
 
-                script = "psrfold_fil --plotx -v -t 12 --candfile {} -n {} {} {} --template {} --clfd 2.0 -L {} -f {} --rfi zdot {}".format(
+                script = "psrfold_fil -v -t 12 --candfile {} -n {} {} {} --template {} --clfd 2.0 -L {} -f {} --rfi zdot {}".format(
                             pred_file, nsubband, nbins_string, beam_tag, TEMPLATE, subint_length, input_filenames, zap_string)
                 log.info(script)
                 try:

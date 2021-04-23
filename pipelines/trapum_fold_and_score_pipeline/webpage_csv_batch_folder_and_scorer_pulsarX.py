@@ -302,69 +302,75 @@ def fold_and_score_pipeline(data):
                     log.error(error)
                     log.error("Predictor candidate file generation failed")
 
-                # Run PulsarX
-                log.info("PulsarX folding  cands {}-{} out of {}".format(batch_start,batch_stop-1,num_cands_total))
-                log.info("PulsarX will be launched with the following command:")
+                fold_glob = tmp_dir+'/{0:d}*_{1:05d}.ar'.format(processing_id,batch_stop-1)
+                fold_exists_check = (len(glob.glob(fold_glob)) > 0)
 
-                cmask = processing_args.get("channel_mask", None)
-                zap_string = ""
-                if cmask is not None:
-                    cmask = cmask.strip()
-                    if cmask:
-                        try:
-                            zap_string = " ".join(["--rfi zap {} {}".format(
-                                *i.split(":")) for i in cmask.split(",")])
-                        except Exception as error:
-                            raise Exception("Unable to parse channel mask: {}".format(
-                                str(error)))
-
-                fast_nbins = processing_args.get("fast_nbins", 64)    # Nbins for candidates < 100 ms
-                slow_nbins = processing_args.get("slow_nbins", 128)   # Nbins for candidates > 100 ms
-                nbins_string = "-b {} --nbinplan 0.1 {}".format(fast_nbins, slow_nbins)
-                subint_length = processing_args.get("subint_length", 10.0)
-                nsubband = processing_args.get("nsubband", 64)
-
-                if 'ifbf' in beam_name:
-                    beam_tag = "--incoherent"
-                elif 'cfbf' in beam_name:
-                    beam_tag = "-i {}".format(int(beam_name.strip("cfbf")))
+                if fold_exists_check:
+                    log.info("Found fold for cand {}, so skipping cands {}-{}".format(batch_stop-1,batch_start,batch_stop-1))
                 else:
-                    log.warning("Invalid beam name. Folding with default beam name")
-                    beam_tag = ""
+                    # Run PulsarX
+                    log.info("PulsarX folding  cands {}-{} out of {}".format(batch_start,batch_stop-1,num_cands_total))
+                    log.info("PulsarX will be launched with the following command:")
 
-                script = "psrfold_fil --plotx -v -t 12 --candfile {} -n {} {} {} --template {} --clfd 2.0 -L {} -f {} --rfi zdot {}".format(
-                            pred_file, nsubband, nbins_string, beam_tag, TEMPLATE, subint_length, input_filenames, zap_string)
-                log.info(script)
-                try:
-                    subprocess.check_call(script, shell=True, cwd=tmp_dir)
-                except Exception as error:
-                    raise error
-                log.info("PulsarX fold of cands {}-{} out of {} successful".format(batch_start,batch_stop-1,num_cands_total))
+                    cmask = processing_args.get("channel_mask", None)
+                    zap_string = ""
+                    if cmask is not None:
+                        cmask = cmask.strip()
+                        if cmask:
+                            try:
+                                zap_string = " ".join(["--rfi zap {} {}".format(
+                                    *i.split(":")) for i in cmask.split(",")])
+                            except Exception as error:
+                                raise Exception("Unable to parse channel mask: {}".format(
+                                    str(error)))
 
-                # New files from PulsarX all get the 'J0000-00' prefix
-                # so rename these with processing ID + corrected indices
-                # so that they don't get overwritten by the next batch
-                ar_files = glob.glob('{}/J0000-00*.ar'.format(tmp_dir))
-                for ar in ar_files:
-                    cand_id = int(ar.split('_')[-1].rstrip('.ar'))
-                    cand_id += batch_start
-                    out_ar = '_'.join(ar.split('_')[:-1]) + '_{0:05d}.ar'.format(cand_id)
-                    out_ar = out_ar.replace('J0000-00', str(processing_id))
-                    os.rename(ar, out_ar)
+                    fast_nbins = processing_args.get("fast_nbins", 64)    # Nbins for candidates < 100 ms
+                    slow_nbins = processing_args.get("slow_nbins", 128)   # Nbins for candidates > 100 ms
+                    nbins_string = "-b {} --nbinplan 0.1 {}".format(fast_nbins, slow_nbins)
+                    subint_length = processing_args.get("subint_length", 10.0)
+                    nsubband = processing_args.get("nsubband", 64)
 
-                png_files = glob.glob('{}/J0000-00*.png'.format(tmp_dir))
-                for png in png_files:
-                    cand_id = int(png.split('_')[-1].rstrip('.png'))
-                    cand_id += batch_start
-                    out_png = '_'.join(png.split('_')[:-1]) + '_{0:05d}.png'.format(cand_id)
-                    out_png = out_png.replace('J0000-00', str(processing_id))
-                    os.rename(png,out_png)
+                    if 'ifbf' in beam_name:
+                        beam_tag = "--incoherent"
+                    elif 'cfbf' in beam_name:
+                        beam_tag = "-i {}".format(int(beam_name.strip("cfbf")))
+                    else:
+                        log.warning("Invalid beam name. Folding with default beam name")
+                        beam_tag = ""
 
-                old_cand_file = glob.glob('{}/J0000-00*.cands'.format(tmp_dir))[0]
-                new_cand_file = old_cand_file.replace('J0000-00', str(processing_id))
-                new_cand_file = new_cand_file.rstrip('.cands')+'_{0:05d}_{1:05d}.cands'.format(batch_start, batch_stop-1)
+                    script = "psrfold_fil --plotx -v -t 12 --candfile {} -n {} {} {} --template {} --clfd 2.0 -L {} -f {} --rfi zdot {}".format(
+                                pred_file, nsubband, nbins_string, beam_tag, TEMPLATE, subint_length, input_filenames, zap_string)
+                    log.info(script)
+                    try:
+                        subprocess.check_call(script, shell=True, cwd=tmp_dir)
+                    except Exception as error:
+                        raise error
+                    log.info("PulsarX fold of cands {}-{} out of {} successful".format(batch_start,batch_stop-1,num_cands_total))
 
-                os.rename(old_cand_file, new_cand_file)
+                    # New files from PulsarX all get the 'J0000-00' prefix
+                    # so rename these with processing ID + corrected indices
+                    # so that they don't get overwritten by the next batch
+                    ar_files = glob.glob('{}/J0000-00*.ar'.format(tmp_dir))
+                    for ar in ar_files:
+                        cand_id = int(ar.split('_')[-1].rstrip('.ar'))
+                        cand_id += batch_start
+                        out_ar = '_'.join(ar.split('_')[:-1]) + '_{0:05d}.ar'.format(cand_id)
+                        out_ar = out_ar.replace('J0000-00', str(processing_id))
+                        os.rename(ar, out_ar)
+
+                    png_files = glob.glob('{}/J0000-00*.png'.format(tmp_dir))
+                    for png in png_files:
+                        cand_id = int(png.split('_')[-1].rstrip('.png'))
+                        cand_id += batch_start
+                        out_png = '_'.join(png.split('_')[:-1]) + '_{0:05d}.png'.format(cand_id)
+                        out_png = out_png.replace('J0000-00', str(processing_id))
+                        os.rename(png,out_png)
+
+                    old_cand_file = glob.glob('{}/J0000-00*.cands'.format(tmp_dir))[0]
+                    new_cand_file = old_cand_file.replace('J0000-00', str(processing_id))
+                    new_cand_file = new_cand_file.rstrip('.cands')+'_{0:05d}_{1:05d}.cands'.format(batch_start, batch_stop-1)
+
+                    os.rename(old_cand_file, new_cand_file)
 
             log.info("PulsarX folding successful")
 

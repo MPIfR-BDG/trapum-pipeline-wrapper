@@ -178,7 +178,7 @@ def get_expected_merge_length(filterbanks):
     return sum([get_fil_dict(fname)['nsamples'] for fname in filterbanks])
 
 
-def peasoup_pipeline(data):
+def peasoup_pipeline(data, status_callback):
 
     output_dps = []
 
@@ -243,6 +243,7 @@ def peasoup_pipeline(data):
             log.info("Expected merge length: {} samples".format(
                 expected_merge_length))
             print(digifil_script)
+            status_callback("merging files")
             merge_filterbanks(digifil_script, merged_file)
 
             # Get header of merged file
@@ -255,6 +256,7 @@ def peasoup_pipeline(data):
             # IQR
             processing_args['tsamp'] = float(filterbank_header['tsamp'])
             processing_args['nchans'] = int(filterbank_header['nchans'])
+            status_callback("running iqrm")
             iqred_file = iqr_filter(
                 merged_file, processing_args, processing_dir)
             remove_temporary_files([merged_file])
@@ -298,7 +300,7 @@ def peasoup_pipeline(data):
                 int(processing_args['nharmonics']), processing_args['snr_threshold'],
                 processing_args['start_accel'], processing_args['end_accel'], fft_size,
                 processing_dir)
-
+            status_callback("running peasoup")
             call_peasoup(peasoup_script)
 
             # Remove merged file after searching
@@ -315,7 +317,7 @@ def peasoup_pipeline(data):
                 dmend=dm_list[-1],
                 dmstep=dm_csv,
             )
-
+            status_callback("cleaning up")
             # Transfer files to output directory if process ran on Beeond
             if processing_args['temp_filesystem'] == '/beeond/':
                 try:

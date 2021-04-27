@@ -69,7 +69,7 @@ class MongoConsumer(object):
                 "last_stack_trace": stack_trace
             }})
 
-    def _mark_success(self, self._current):
+    def _mark_success(self):
         self._collection.update_one(
             {"_id": self._current["_id"]},
             {"$set": {
@@ -107,10 +107,10 @@ class MongoConsumer(object):
                 except Exception as error:
                     log.exception("Message handler failure")
                     self._mark_failed(
-                        message, error, traceback.format_exc())
+                        error, traceback.format_exc())
                 else:
                     log.info("Message successfully processed")
-                    self._mark_success(message)
+                    self._mark_success()
                 finally:
                     self._current = None
 
@@ -128,7 +128,9 @@ def add_mongo_consumer_opts(parser):
 def mongo_consumer_from_opts(opts):
     log.setLevel(opts.log_level.upper())
     logging.getLogger("pymongo").setLevel("WARN")
-    process = MongoConsumer(opts.pipeline_name, opts.mongo, {})
+    client = pymongo.MongoClient(opts.mongo)
+    collection = client.arse.queue
+    process = MongoConsumer(opts.pipeline, collection, {})
     return process
 
 

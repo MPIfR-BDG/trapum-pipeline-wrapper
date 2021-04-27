@@ -1,6 +1,5 @@
 import os
 import xxhash
-import json
 import datetime
 import logging
 from contextlib import contextmanager
@@ -16,7 +15,7 @@ class TrapumPipelineWrapper(object):
     def __init__(self, opts, pipeline_callable):
         self._pipeline_callable = pipeline_callable
         self._processing_id = None
-        self._opts = opts 
+        self._opts = opts
         self._session_engine = create_engine(opts.database, echo=False, poolclass=NullPool)
         self._session_factory = sessionmaker(
             bind=self._session_engine)
@@ -55,7 +54,7 @@ class TrapumPipelineWrapper(object):
         return xx.hexdigest()
 
 
-    def on_receive(self, message):
+    def on_receive(self, message, status_callback):
         # here we parse the argument model
         """
         {
@@ -68,18 +67,18 @@ class TrapumPipelineWrapper(object):
         # If this fails there should be no update to
         # the database it should just result in the pika
         # wrapper passing the message to the fail queue
-        data = json.loads(message.decode())
+        data = message
         with self.session() as session:
             processing = session.query(Processing).get(data["processing_id"])
             if processing is None:
                 raise Exception("No Processing entry with ID = {}".format(
                     data["processing_id"]))
-            self._processing_id = processing.id 
+            self._processing_id = processing.id
             processing.start_time = datetime.datetime.utcnow()
             processing.process_status = "running"
             session.add(processing)
         try:
-            data_products = self._pipeline_callable(data)
+            data_products = self._pipeline_callable(data, status_callback)
             self.on_success(data_products)
         except Exception as error:
             log.exception("Error from pipeline: {}".format(str(error)))
@@ -91,12 +90,12 @@ class TrapumPipelineWrapper(object):
          required from pipeline: Filetype, filename, beam id , pointing id, directory
 
         '''
-          
+
         with self.session() as session:
             processing = session.query(Processing).get(self._processing_id)
             now = datetime.datetime.utcnow()
             processing.end_time = now
-   
+
             for dp in data_products:
                 ft = session.query(FileType).filter(
                     FileType.name.ilike(dp['type'])).first()
@@ -115,7 +114,7 @@ class TrapumPipelineWrapper(object):
                     pointing_id=dp["pointing_id"],
                     processing_id=processing.id,
                     metainfo=dp["metainfo"],
-                    filehash=filehash, 
+                    filehash=filehash,
                     available=True,
                     locked=True
                     )

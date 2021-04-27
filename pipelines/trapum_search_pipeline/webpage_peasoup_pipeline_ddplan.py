@@ -70,6 +70,7 @@ def remove_username(xml_file):
 
 def remove_temporary_files(tmp_files):
     for tmp_file in tmp_files:
+        print("Removing: {}".format(tmp_file))
         subprocess.check_call("rm %s" % tmp_file, shell=True)
 
 
@@ -392,6 +393,8 @@ def peasoup_pipeline(data):
                     log.info("Transferred XML file from Beeond to BeeGFS")
                 except Exception as error:
                     log.error(error)
+                else:
+                    os.rmdir(subdir)
 
                 dp = dict(
                     type="peasoup_xml",

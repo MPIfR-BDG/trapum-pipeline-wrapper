@@ -53,7 +53,6 @@ class TrapumPipelineWrapper(object):
             xx.update('{}'.format(os.path.getsize(filepath)))
         return xx.hexdigest()
 
-
     def on_receive(self, message, status_callback):
         # here we parse the argument model
         """

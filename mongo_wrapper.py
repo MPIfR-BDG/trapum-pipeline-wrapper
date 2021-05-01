@@ -48,7 +48,7 @@ class MongoConsumer(object):
             }},
             sort=[
                 ("priority", pymongo.DESCENDING),
-                ("_id", pymongo.ASCENDING)
+                ("processing_id", pymongo.ASCENDING)
             ])
         return message
 

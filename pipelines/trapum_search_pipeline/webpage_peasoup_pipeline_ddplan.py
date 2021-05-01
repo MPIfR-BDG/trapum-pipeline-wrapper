@@ -213,7 +213,7 @@ class Filterbank(object):
     pass
 
 
-def peasoup_pipeline(data):
+def peasoup_pipeline(data, status_callback):
 
     output_dps = []
 
@@ -231,7 +231,6 @@ def peasoup_pipeline(data):
         raise error
     else:
         log.info("Making directory: {}".format(output_dir))
-
 
     # To avoid core dump related interruptions
     try:
@@ -286,6 +285,7 @@ def peasoup_pipeline(data):
             log.info("Expected merge length: {} samples".format(
                 expected_merge_length))
             print(digifil_script)
+            status_callback("merging")
             merge_filterbanks(digifil_script, merged_file)
 
             # Get header of merged file
@@ -298,6 +298,7 @@ def peasoup_pipeline(data):
             # IQR
             processing_args['tsamp'] = float(filterbank_header['tsamp'])
             processing_args['nchans'] = int(filterbank_header['nchans'])
+            status_callback("IQRM filtering")
             iqred_file = iqr_filter(
                 merged_file, processing_args, processing_dir)
             remove_temporary_files([merged_file])
@@ -361,9 +362,9 @@ def peasoup_pipeline(data):
                     int(processing_args['nharmonics']), processing_args['snr_threshold'],
                     processing_args['start_accel'], processing_args['end_accel'], curr_fft_size,
                     subdir)
-
+                status_callback("Peasoup (DM: {} - {})".format(
+                    dm_range.low_dm, dm_range.high_dm))
                 call_peasoup(peasoup_script)
-
                 # Remove merged file after searching
                 cand_peasoup = subdir + '/candidates.peasoup'
                 tmp_files = []
@@ -379,7 +380,6 @@ def peasoup_pipeline(data):
                     dmend=dm_range.high_dm,
                     dmstep=dm_range.dm_step,
                 )
-
                 new_filename = "overview_dm_{:03f}_{:03f}.xml".format(
                     dm_range.low_dm, dm_range.high_dm)
 

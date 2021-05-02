@@ -151,9 +151,3 @@ if __name__ == "__main__":
     processor = mongo_wrapper.mongo_consumer_from_opts(opts)
     pipeline_wrapper = TrapumPipelineWrapper(opts, candidate_filter_pipeline)
     processor.process(pipeline_wrapper.on_receive)
-
-
-        - git fetch --all && git checkout mongo_consumer && git pull && ulimit -c
-          0 &&  exec python3.6 webpage_peasoup_pipeline_ddplan.py --pipeline=peasoup_ddplan_20210401
-          --mongo=mongodb://${SECRET_USERNAME}:${SECRET_PASSWORD}@mmongo.mpifr-be.mkat.karoo.kat.ac.za:27017/
-          --db=mysql+pymysql://${SECRET_USERNAME}:${SECRET_PASSWORD}@10.98.76.190:30002/trapum_web

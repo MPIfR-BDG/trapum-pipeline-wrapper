@@ -129,7 +129,7 @@ def mongo_consumer_from_opts(opts):
     log.setLevel(opts.log_level.upper())
     logging.getLogger("pymongo").setLevel("WARN")
     client = pymongo.MongoClient(opts.mongo)
-    collection = client.arse.queue
+    collection = client.trapum.processing_queue
     process = MongoConsumer(opts.pipeline, collection, {})
     return process
 

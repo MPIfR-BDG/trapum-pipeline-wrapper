@@ -22,6 +22,8 @@ class MongoConsumer(object):
         self._filter = filter_
         self._current = None
         self._sleep_time = 20
+        signal.signal(signal.SIGTERM, self._signal_handler)
+        signal.signal(signal.SIGINT, self._signal_handler)
 
     def _signal_handler(self, signum, frame):
         log.info("Signal handler called with signal {}".format(signum))
@@ -59,8 +61,6 @@ class MongoConsumer(object):
             {"_id": self._current["_id"]},
             {"$set": {
                 "eligible": eligible,
-                "acquired_at": datetime.datetime.utcnow(),
-                "acquired_by": socket.gethostname(),
                 "state": "failed",
                 "last_state_transition": datetime.datetime.utcnow(),
                 "processing_attemps": self._current.get("processing_attemps", 0) + 1,
@@ -74,8 +74,6 @@ class MongoConsumer(object):
             {"_id": self._current["_id"]},
             {"$set": {
                 "eligible": False,
-                "acquired_at": datetime.datetime.utcnow(),
-                "acquired_by": socket.gethostname(),
                 "state": "complete",
                 "last_state_transition": datetime.datetime.utcnow(),
                 "completed_at": datetime.datetime.utcnow()

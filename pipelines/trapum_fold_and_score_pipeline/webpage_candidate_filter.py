@@ -37,7 +37,7 @@ def remove_dir(dir_name):
         log.error("Directory not deleted. Not a temporary folder!")
 
 
-def candidate_filter_pipeline(data):
+def candidate_filter_pipeline(data, status_callback):
     output_dps = []
     dp_list = []
 
@@ -77,7 +77,7 @@ def candidate_filter_pipeline(data):
         with open(xml_list_file, "w") as f:
             for fname in xml_list:
                 f.write("{}\n".format(fname))
-
+        status_callback("filtering")
         # Run the candidate filtering code
         try:
             subprocess.check_call(
@@ -143,10 +143,12 @@ def candidate_filter_pipeline(data):
 if __name__ == "__main__":
 
     parser = optparse.OptionParser()
-    pika_wrapper.add_pika_process_opts(parser)
+    mongo_wrapper.add_mongo_consumer_opts(parser)
     TrapumPipelineWrapper.add_options(parser)
     opts, args = parser.parse_args()
 
-    processor = pika_wrapper.pika_process_from_opts(opts)
+    # processor = mongo_wrapper.PikaProcess(...)
+    processor = mongo_wrapper.mongo_consumer_from_opts(opts)
     pipeline_wrapper = TrapumPipelineWrapper(opts, candidate_filter_pipeline)
     processor.process(pipeline_wrapper.on_receive)
+

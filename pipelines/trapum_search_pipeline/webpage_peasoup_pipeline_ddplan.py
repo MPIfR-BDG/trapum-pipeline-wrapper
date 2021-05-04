@@ -3,6 +3,7 @@ import subprocess
 import logging
 import parseheader
 import os
+import glob
 import numpy as np
 import json
 from collections import namedtuple
@@ -422,7 +423,11 @@ def peasoup_pipeline(data, status_callback):
             client.trapum.peasoup_xml_files.update(doc, doc, True)
             """
             if processing_args['temp_filesystem'] == '/beeond/':
-                os.rmdir(processing_dir)
+                try:
+                    os.system("rm -rf {}".format(processing_dir))
+                except Exception as error:
+                    log.exception("Cannot remove {}".format(processing_dir))
+
 
     return output_dps
 

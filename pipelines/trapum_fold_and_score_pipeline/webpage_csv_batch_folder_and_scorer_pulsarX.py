@@ -438,8 +438,11 @@ def fold_and_score_pipeline(data, status_callback):
             log.info("Tarred")
 
             # Remove contents in temporary directory
-            remove_dir(tmp_dir)
-            log.info("Removed temporary files")
+            try:
+                remove_dir(tmp_dir)
+                log.info("Removed temporary files")
+            except Exception as error:
+                log.exception("Unable to remove temp dir")
 
             # Add tar file to dataproduct
             dp = dict(
@@ -468,4 +471,3 @@ if __name__ == "__main__":
     processor = mongo_wrapper.mongo_consumer_from_opts(opts)
     pipeline_wrapper = TrapumPipelineWrapper(opts, fold_and_score_pipeline)
     processor.process(pipeline_wrapper.on_receive)
-

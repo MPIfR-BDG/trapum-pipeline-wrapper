@@ -1,7 +1,7 @@
 import os
 import time
 import json
-import pika_wrapper
+import mongo_wrapper
 import trapum_pipeline_wrapper
 from trapum_pipeline_wrapper import TrapumPipelineWrapper
 import optparse
@@ -267,13 +267,12 @@ def subband_pipeline(data):
 
 
 if __name__ == '__main__':
-
     parser = optparse.OptionParser()
-    pika_wrapper.add_pika_process_opts(parser)
+    mongo_wrapper.add_mongo_consumer_opts(parser)
     TrapumPipelineWrapper.add_options(parser)
     opts, args = parser.parse_args()
 
-    # processor = pika_wrapper.PikaProcess(...)
-    processor = pika_wrapper.pika_process_from_opts(opts)
+    # processor = mongo_wrapper.PikaProcess(...)
+    processor = mongo_wrapper.mongo_consumer_from_opts(opts)
     pipeline_wrapper = TrapumPipelineWrapper(opts, subband_pipeline)
     processor.process(pipeline_wrapper.on_receive)

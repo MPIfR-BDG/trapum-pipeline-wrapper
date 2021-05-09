@@ -56,14 +56,14 @@ class MongoConsumer(object):
 
     def _mark_failed(self, error, stack_trace):
         max_retries = self._current.get("max_retries", DEFAULT_RETRIES)
-        eligible = self._current.get("processing_attemps", 0) < max_retries
+        eligible = self._current.get("processing_attempts", 0) < max_retries
         self._collection.update_one(
             {"_id": self._current["_id"]},
             {"$set": {
                 "eligible": eligible,
                 "state": "failed",
                 "last_state_transition": datetime.datetime.utcnow(),
-                "processing_attemps": self._current.get("processing_attemps", 0) + 1,
+                "processing_attempts": self._current.get("processing_attempts", 0) + 1,
                 "last_error": str(error),
                 "last_error_time": datetime.datetime.utcnow(),
                 "last_stack_trace": stack_trace

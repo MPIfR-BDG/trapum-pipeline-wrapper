@@ -126,7 +126,7 @@ def get_expected_merge_length(filterbanks):
 # process_manager.process(pipeline_wrapper.on_receive)
 
 
-def subband_pipeline(data):
+def subband_pipeline(data, status_callback):
     log.info("Starting subbanding pipeline")
     output_dps = []
 
@@ -171,7 +171,7 @@ def subband_pipeline(data):
             expected_merge_length = get_expected_merge_length(dp_list)
             log.info("Expected merge length: {} samples".format(
                 expected_merge_length))
-
+            status_callback("merging")
             if os.path.isfile(merged_file):
                 if abs(os.stat(merged_file).st_size - expected_merged_size) < SIZE_MARGIN:
                     log.info("Found merged file that is of the expected size, using that")
@@ -196,7 +196,7 @@ def subband_pipeline(data):
             # IQR
             processing_args['tsamp'] = float(filterbank_header['tsamp'])
             processing_args['nchans'] = int(filterbank_header['nchans'])
-
+            status_callback("IQRM filter")
             iqred_file = output_dir + '/' + \
                 os.path.basename(merged_file)[:-4] + '_iqrm.fil'
             if os.path.isfile(iqred_file):
@@ -214,7 +214,7 @@ def subband_pipeline(data):
                 log.error("IQRM file has unexpected length of {} samples, expected {} samples".format(
                     iqred_header['nsamples'], expected_merge_length))
                 raise Exception("Incorrect merged file length, failure in IQRM processing")
-
+            status_callback("subbanding")
             # Subband the file
             subbanded_file = subband_fil(iqred_file, processing_args)
             # Update telescope id of subbanded file

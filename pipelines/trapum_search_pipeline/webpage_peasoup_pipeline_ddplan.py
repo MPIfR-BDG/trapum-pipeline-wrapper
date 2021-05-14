@@ -74,7 +74,7 @@ async def shell_call(cmd):
         stderr=asyncio.subprocess.PIPE)
     retcode = await proc.wait()
     if retcode != 0:
-        raise subprocess.CalledProcessError(f"Process return-code {retcode}")
+        raise Exception(f"Process return-code {retcode}")
 
 
 def delete_file_if_exists(output_fil):
@@ -366,7 +366,7 @@ async def peasoup_pipeline(data, status_callback):
                 dm_list_file = "dm_list.ascii"
                 dmfile_from_dmrange(dm_range, dm_list_file)
 
-                curr_fft_size = fft_size / dm_range.tscrunch
+                curr_fft_size = fft_size // dm_range.tscrunch
                 peasoup_output_dir = os.path.join(
                     processing_dir,
                     f"dm_range_{dm_range.low_dm:03f}_{dm_range.high_dm:03f}")
@@ -380,7 +380,7 @@ async def peasoup_pipeline(data, status_callback):
                     processing_args['snr_threshold'],
                     processing_args['start_accel'],
                     processing_args['end_accel'],
-                    curr_fft_size,
+                    int(curr_fft_size),
                     peasoup_output_dir)
 
                 # We do not keep the candidates.peasoup files as they can be massive

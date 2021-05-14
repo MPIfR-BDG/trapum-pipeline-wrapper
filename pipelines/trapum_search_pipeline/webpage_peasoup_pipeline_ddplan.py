@@ -372,11 +372,11 @@ async def peasoup_pipeline(data, status_callback):
                     search_file, dm_list_file,
                     chan_mask_file, birdie_list_file,
                     processing_args['candidate_limit'],
-                    processing_args['ram_limit']
+                    processing_args['ram_limit'],
                     int(processing_args['nharmonics']),
                     processing_args['snr_threshold'],
                     processing_args['start_accel'],
-                    processing_args['end_accel']
+                    processing_args['end_accel'],
                     curr_fft_size,
                     peasoup_output_dir)
 

@@ -411,10 +411,9 @@ async def peasoup_pipeline(data, status_callback):
 
 
 def pipeline(data, status_callback):
-    loop = asyncio.new_event_loop()
+    loop = asyncio.get_event_loop()
     output_dps = loop.run_until_complete(
         peasoup_pipeline(data, status_callback))
-    loop.close()
     return output_dps
 
 

@@ -131,11 +131,11 @@ async def iqrm(input_fil, output_fil, max_lags, threshold, samples, nchans):
 async def peasoup(input_fil, dm_list, channel_mask, birdie_list,
                   candidate_limit, ram_limit, nharmonics, snr_threshold,
                   start_accel, end_accel, fft_length, out_dir):
-    cmd = (f"peasoup -k {channel_mask_file} -z {birdie_list_file} "
+    cmd = (f"peasoup -k {channel_mask} -z {birdie_list} "
            f"-i {input_fil} --ram_limit_gb {ram_limit} "
-           f"--dm_file {dm_list_file} --limit {candidate_limit} "
-           f"-n {nharmonics}  -m {snr_threshold} --acc_start {acc_start} "
-           f"--acc_end {acc_end} --fft_size {fft_length} -o {out_dir}")
+           f"--dm_file {dm_list} --limit {candidate_limit} "
+           f"-n {nharmonics}  -m {snr_threshold} --acc_start {start_accel} "
+           f"--acc_end {end_accel} --fft_size {fft_length} -o {out_dir}")
     await shell_call(cmd)
 
 

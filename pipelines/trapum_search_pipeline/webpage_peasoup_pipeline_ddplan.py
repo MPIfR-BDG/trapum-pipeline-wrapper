@@ -426,5 +426,5 @@ if __name__ == '__main__':
 
     # processor = mongo_wrapper.PikaProcess(...)
     processor = mongo_wrapper.mongo_consumer_from_opts(opts)
-    pipeline_wrapper = TrapumPipelineWrapper(opts, peasoup_pipeline)
+    pipeline_wrapper = TrapumPipelineWrapper(opts, pipeline)
     processor.process(pipeline_wrapper.on_receive)

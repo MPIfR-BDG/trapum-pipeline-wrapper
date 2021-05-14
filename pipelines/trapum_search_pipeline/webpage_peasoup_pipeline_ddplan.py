@@ -215,7 +215,7 @@ class DownsamplingManager(object):
         self._downsampling_tasks = {}
         self._downsamplings = {1: self._original}
         log.info("Preparing downsamplings for values {}".format(
-            ", ".join(tscrunches)))
+            ", ".join(map(str, tscrunches))))
         self._prepare(tscrunches)
 
     async def _downsample(self, tscrunch, depends, outfile):
@@ -307,7 +307,7 @@ async def peasoup_pipeline(data, status_callback):
             fscrunch = processing_args.get("fscrunch", 1)
             merged_file = os.path.join(processing_dir, f"temp_merge_p_id_{processing_id}.fil")
             status_callback("Merging filterbanks")
-            await digifil(dps, merged_file, fscrunch=fscrunch)
+            #await digifil(dps, merged_file, fscrunch=fscrunch)
             merged_header = get_fil_dict(merged_file)
 
             # Next run the IQRM algorithm on the merged fail
@@ -317,10 +317,10 @@ async def peasoup_pipeline(data, status_callback):
             iqrm_window = processing_args['window']
             iqrm_samples = int(round(processing_args['window'] / merged_tsamp))
             status_callback("IQRM cleaning")
-            await iqrm(
-                merged_file, iqrm_file,
-                processing_args['max_lags'], processing_args['threshold'],
-                iqrm_samples, int(merged_header['nchans']))
+            #await iqrm(
+            #    merged_file, iqrm_file,
+            #    processing_args['max_lags'], processing_args['threshold'],
+            #    iqrm_samples, int(merged_header['nchans']))
 
             # Clean up the merged file which is no longer required
             os.remove(merged_file)

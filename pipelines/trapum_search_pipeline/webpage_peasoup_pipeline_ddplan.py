@@ -343,7 +343,7 @@ async def peasoup_pipeline(data, status_callback):
             log.info("Determining channel mask")
             chan_mask_csv = processing_args["channel_mask"]
             chan_mask_file = "channel_mask.ascii"
-            generate_chan_mask(chan_mask_csv, filterbank_header, chan_mask_file)
+            generate_chan_mask(chan_mask_csv, merged_header, chan_mask_file)
 
             # Determine birdie list to use
             og.info("Determining birdie list")

@@ -96,8 +96,12 @@ async def digifil(input_fils, output_fil, tscrunch=1,
     delete_file_if_exists(output_fil)
     expected_nsamps = sum([get_fil_dict(fname)["nsamples"] for fname in input_fils])
     expected_nsamps = expected_nsamps / tscrunch / fscrunch
+
+    f_flag = f"-f {fscrunch}" if fscrunch != 1 else ""
+    t_flag = f"-t {tscrunch}" if tscrunch != 1 else ""
+
     cmd = (f"digifil {' '.join(input_fils)} -b {nbits} -threads {nthreads} "
-           f"-o {output_fil} -f {fscrunch} -t {tscrunch} ")
+           f"-o {output_fil} {f_flag} {t_flag}")
     try:
         await shell_call(cmd)
     except Exception as error:
@@ -120,7 +124,6 @@ async def iqrm(input_fil, output_fil, max_lags, threshold, samples, nchans):
         log.error("IQRM call failed, cleaning up partial files")
         delete_file_if_exists(output_fil)
         raise error
-    await shell_call(cmd)
     output_nsamps = get_fil_dict(output_fil)["nsamples"]
     compare_lengths(expected_nsamps, output_nsamps)
 
@@ -302,7 +305,7 @@ async def peasoup_pipeline(data, status_callback):
             # this is done at whatever the native resolution of the data is
             log.info("Executing file merge")
             fscrunch = processing_args.get("fscrunch", 1)
-            merged_file = os.path.join(processing_dir, f"temp_merge_p_id_{processing_id}")
+            merged_file = os.path.join(processing_dir, f"temp_merge_p_id_{processing_id}.fil")
             status_callback("Merging filterbanks")
             await digifil(dps, merged_file, fscrunch=fscrunch)
             merged_header = get_fil_dict(merged_file)

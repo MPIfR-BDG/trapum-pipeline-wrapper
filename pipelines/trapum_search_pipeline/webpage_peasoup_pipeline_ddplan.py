@@ -300,116 +300,120 @@ async def peasoup_pipeline(data, status_callback):
                 log.info("Running on BeeGFS")
                 processing_dir = os.path.join(output_dir, "processing/")
             os.makedirs(processing_dir, exist_ok=True)
+            try:
 
-            # First merge the filterbanks and output to processing directory
-            # this is done at whatever the native resolution of the data is
-            log.info("Executing file merge")
-            fscrunch = processing_args.get("fscrunch", 1)
-            merged_file = os.path.join(processing_dir, f"temp_merge_p_id_{processing_id}.fil")
-            status_callback("Merging filterbanks")
-            await digifil(dps, merged_file, fscrunch=fscrunch)
-            merged_header = get_fil_dict(merged_file)
+                # First merge the filterbanks and output to processing directory
+                # this is done at whatever the native resolution of the data is
+                log.info("Executing file merge")
+                fscrunch = processing_args.get("fscrunch", 1)
+                merged_file = os.path.join(processing_dir, f"temp_merge_p_id_{processing_id}.fil")
+                status_callback("Merging filterbanks")
+                await digifil(dps, merged_file, fscrunch=fscrunch)
+                merged_header = get_fil_dict(merged_file)
 
-            # Next run the IQRM algorithm on the merged fail
-            log.info("Performing IQRM cleaning")
-            merged_tsamp = float(merged_header['tsamp'])
-            iqrm_file = merged_file.replace(".fil", "_iqrm.fil")
-            iqrm_window = processing_args['window']
-            iqrm_samples = int(round(processing_args['window'] / merged_tsamp))
-            status_callback("IQRM cleaning")
-            await iqrm(
-                merged_file, iqrm_file,
-                processing_args['max_lags'], processing_args['threshold'],
-                iqrm_samples, int(merged_header['nchans']))
+                # Next run the IQRM algorithm on the merged fail
+                log.info("Performing IQRM cleaning")
+                merged_tsamp = float(merged_header['tsamp'])
+                iqrm_file = merged_file.replace(".fil", "_iqrm.fil")
+                iqrm_window = processing_args['window']
+                iqrm_samples = int(round(processing_args['window'] / merged_tsamp))
+                status_callback("IQRM cleaning")
+                await iqrm(
+                    merged_file, iqrm_file,
+                    processing_args['max_lags'], processing_args['threshold'],
+                    iqrm_samples, int(merged_header['nchans']))
 
-            # Clean up the merged file which is no longer required
-            os.remove(merged_file)
+                # Clean up the merged file which is no longer required
+                os.remove(merged_file)
 
-            # Determine fft_size for Peasoup call
-            if processing_args['fft_length'] == 0:
-                fft_size = decide_fft_size(merged_header)
-            else:
-                fft_size = processing_args['fft_length']
+                # Determine fft_size for Peasoup call
+                if processing_args['fft_length'] == 0:
+                    fft_size = decide_fft_size(merged_header)
+                else:
+                    fft_size = processing_args['fft_length']
 
-            # Hard coded for max limit - tmp assuming 4hr, 76 us
-            # This is related to the available RAM of GTX 1080Ti GPUs
-            # and the limitations of the 32-bit implementation
-            # of the CUFFT library
-            if fft_size > MAX_FFT_LEN:
-                fft_size = MAX_FFT_LEN
-            log.info(f"Chose base FFT length of {fft_size}")
+                # Hard coded for max limit - tmp assuming 4hr, 76 us
+                # This is related to the available RAM of GTX 1080Ti GPUs
+                # and the limitations of the 32-bit implementation
+                # of the CUFFT library
+                if fft_size > MAX_FFT_LEN:
+                    fft_size = MAX_FFT_LEN
+                log.info(f"Chose base FFT length of {fft_size}")
 
-            # Determine channel mask to use
-            log.info("Determining channel mask")
-            chan_mask_csv = processing_args["channel_mask"]
-            chan_mask_file = "channel_mask.ascii"
-            generate_chan_mask(chan_mask_csv, merged_header, chan_mask_file)
+                # Determine channel mask to use
+                log.info("Determining channel mask")
+                chan_mask_csv = processing_args["channel_mask"]
+                chan_mask_file = "channel_mask.ascii"
+                generate_chan_mask(chan_mask_csv, merged_header, chan_mask_file)
 
-            # Determine birdie list to use
-            log.info("Determining birdie list")
-            birdie_list_csv = processing_args["birdie_list"]
-            birdie_list_file = "birdie_list.ascii"
-            generate_birdie_list(birdie_list_csv, birdie_list_file)
+                # Determine birdie list to use
+                log.info("Determining birdie list")
+                birdie_list_csv = processing_args["birdie_list"]
+                birdie_list_file = "birdie_list.ascii"
+                generate_birdie_list(birdie_list_csv, birdie_list_file)
 
-            # Set RAM limit
-            ram_limit = processing_args['ram_limit']
+                # Set RAM limit
+                ram_limit = processing_args['ram_limit']
 
-            log.info("Instantiating downsampling manager")
-            tscrunches = [dm_range.tscrunch for dm_range in ddplan]
-            downsampling_manager = DownsamplingManager(iqrm_file, tscrunches)
+                log.info("Instantiating downsampling manager")
+                tscrunches = [dm_range.tscrunch for dm_range in ddplan]
+                downsampling_manager = DownsamplingManager(iqrm_file, tscrunches)
 
-            log.info("Starting loop over DDPlan")
-            for dm_range in ddplan:
-                log.info(f"Processing DM range: {dm_range}")
-                search_file = await downsampling_manager.get_downsampling(dm_range.tscrunch)
-                log.info(f"Searching file: {search_file}")
-                dm_list_file = "dm_list.ascii"
-                dmfile_from_dmrange(dm_range, dm_list_file)
+                log.info("Starting loop over DDPlan")
+                for dm_range in ddplan:
+                    log.info(f"Processing DM range: {dm_range}")
+                    search_file = await downsampling_manager.get_downsampling(dm_range.tscrunch)
+                    log.info(f"Searching file: {search_file}")
+                    dm_list_file = "dm_list.ascii"
+                    dmfile_from_dmrange(dm_range, dm_list_file)
 
-                curr_fft_size = fft_size // dm_range.tscrunch
-                peasoup_output_dir = os.path.join(
-                    processing_dir,
-                    f"dm_range_{dm_range.low_dm:03f}_{dm_range.high_dm:03f}")
-                status_callback(f"Peasoup (DM: {dm_range.low_dm} - {dm_range.high_dm})")
-                await peasoup(
-                    search_file, dm_list_file,
-                    chan_mask_file, birdie_list_file,
-                    processing_args['candidate_limit'],
-                    processing_args['ram_limit'],
-                    int(processing_args['nharmonics']),
-                    processing_args['snr_threshold'],
-                    processing_args['start_accel'],
-                    processing_args['end_accel'],
-                    int(curr_fft_size),
-                    peasoup_output_dir)
+                    curr_fft_size = fft_size // dm_range.tscrunch
+                    peasoup_output_dir = os.path.join(
+                        processing_dir,
+                        f"dm_range_{dm_range.low_dm:03f}_{dm_range.high_dm:03f}")
+                    status_callback(f"Peasoup (DM: {dm_range.low_dm} - {dm_range.high_dm})")
+                    await peasoup(
+                        search_file, dm_list_file,
+                        chan_mask_file, birdie_list_file,
+                        processing_args['candidate_limit'],
+                        processing_args['ram_limit'],
+                        int(processing_args['nharmonics']),
+                        processing_args['snr_threshold'],
+                        processing_args['start_accel'],
+                        processing_args['end_accel'],
+                        int(curr_fft_size),
+                        peasoup_output_dir)
 
-                # We do not keep the candidates.peasoup files as they can be massive
-                peasoup_candidate_file = os.path.join(
-                    peasoup_output_dir, "candidates.peasoup")
-                os.remove(peasoup_candidate_file)
-                os.remove(dm_list_file)
-                meta_info = dict(
-                    fftsize=curr_fft_size,
-                    dmstart=dm_range.low_dm,
-                    dmend=dm_range.high_dm,
-                    dmstep=dm_range.dm_step,
-                )
-                new_xml_file_name = "overview_dm_{:03f}_{:03f}.xml".format(
-                    dm_range.low_dm, dm_range.high_dm)
-                shutil.move(
-                    os.path.join(peasoup_output_dir, "overview.xml"),
-                    os.path.join(output_dir, new_xml_file_name))
-                log.info("Transferred XML file to final location")
-                dp = dict(
-                    type="peasoup_xml",
-                    filename=new_xml_file_name,
-                    directory=data["base_output_dir"],
-                    beam_id=beam["id"],
-                    pointing_id=pointing["id"],
-                    metainfo=json.dumps(meta_info)
-                )
-                output_dps.append(dp)
-            shutil.rmtree(processing_dir)
+                    # We do not keep the candidates.peasoup files as they can be massive
+                    peasoup_candidate_file = os.path.join(
+                        peasoup_output_dir, "candidates.peasoup")
+                    os.remove(peasoup_candidate_file)
+                    os.remove(dm_list_file)
+                    meta_info = dict(
+                        fftsize=curr_fft_size,
+                        dmstart=dm_range.low_dm,
+                        dmend=dm_range.high_dm,
+                        dmstep=dm_range.dm_step,
+                    )
+                    new_xml_file_name = "overview_dm_{:03f}_{:03f}.xml".format(
+                        dm_range.low_dm, dm_range.high_dm)
+                    shutil.move(
+                        os.path.join(peasoup_output_dir, "overview.xml"),
+                        os.path.join(output_dir, new_xml_file_name))
+                    log.info("Transferred XML file to final location")
+                    dp = dict(
+                        type="peasoup_xml",
+                        filename=new_xml_file_name,
+                        directory=data["base_output_dir"],
+                        beam_id=beam["id"],
+                        pointing_id=pointing["id"],
+                        metainfo=json.dumps(meta_info)
+                    )
+                    output_dps.append(dp)
+            except Exception as error:
+                raise error
+            finally:
+                shutil.rmtree(processing_dir)
     return output_dps
 
 

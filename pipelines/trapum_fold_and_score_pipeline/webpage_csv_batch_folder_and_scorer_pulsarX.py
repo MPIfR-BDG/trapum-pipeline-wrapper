@@ -9,7 +9,7 @@ import tarfile
 import optparse
 import subprocess
 import logging
-import pika_wrapper
+import mongo_wrapper
 import multiprocessing
 from multiprocessing.pool import ThreadPool
 import numpy as np
@@ -153,7 +153,7 @@ def parse_cuts(cuts, tobs):
             return 0.0
 
 
-def fold_and_score_pipeline(data):
+def fold_and_score_pipeline(data, status_callback):
     '''
     required from pipeline: Filetype, filename, beam id , pointing id, directory
 
@@ -206,7 +206,7 @@ def fold_and_score_pipeline(data):
             untar_file(tarred_csv, tmp_dir)
             # tmp_dir = glob.glob(tmp_dir + '/' + os.path.basename(tarred_csv)
             tmp_dir = glob.glob(tmp_dir + '/**/')[0]
-
+            status_callback("Parsing and cutting XMLs")
             # Read candidate info file into Pandas Dataframe
             log.info("Reading candidate info...")
             cand_file = glob.glob(
@@ -246,7 +246,9 @@ def fold_and_score_pipeline(data):
 
             num_cands_total = single_beam_cands_fold_limited.shape[0]
             nperbatch = processing_args.get('batch_size', 100)
-            for batch_start in range(0, num_cands_total, nperbatch): #single_beam_cands.shape[0],nperbatch):
+            for batch_number, batch_start in enumerate(range(0, num_cands_total, nperbatch)):
+                status_callback("Folding batch {} of {}".format(batch_number, int(num_cands_total/nperbatch + 0.5)))
+
                 batch_stop = min(batch_start+nperbatch, num_cands_total)
                 single_beam_cands_fold_limited = single_beam_cands[batch_start:batch_stop]
 
@@ -367,7 +369,7 @@ def fold_and_score_pipeline(data):
                 os.rename(old_cand_file, new_cand_file)
 
             log.info("PulsarX folding successful")
-
+            status_callback("Scoring candidates")
             log.info("Folding done for all candidates. Scoring all candidates...")
             subprocess.check_call(
                 "python2 webpage_score.py --in_path={}".format(tmp_dir),
@@ -436,8 +438,11 @@ def fold_and_score_pipeline(data):
             log.info("Tarred")
 
             # Remove contents in temporary directory
-            remove_dir(tmp_dir)
-            log.info("Removed temporary files")
+            try:
+                remove_dir(tmp_dir)
+                log.info("Removed temporary files")
+            except Exception as error:
+                log.exception("Unable to remove temp dir")
 
             # Add tar file to dataproduct
             dp = dict(
@@ -457,15 +462,12 @@ def fold_and_score_pipeline(data):
 
 
 if __name__ == "__main__":
-
     parser = optparse.OptionParser()
-    pika_wrapper.add_pika_process_opts(parser)
+    mongo_wrapper.add_mongo_consumer_opts(parser)
     TrapumPipelineWrapper.add_options(parser)
     opts, args = parser.parse_args()
 
-    processor = pika_wrapper.pika_process_from_opts(opts)
+    # processor = mongo_wrapper.PikaProcess(...)
+    processor = mongo_wrapper.mongo_consumer_from_opts(opts)
     pipeline_wrapper = TrapumPipelineWrapper(opts, fold_and_score_pipeline)
     processor.process(pipeline_wrapper.on_receive)
-
-    get_params_from_csv_and_fold(opts)
-

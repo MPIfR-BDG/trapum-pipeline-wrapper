@@ -17,13 +17,16 @@ FORMAT = "[%(levelname)s - %(asctime)s - %(filename)s:%(lineno)s] %(message)s"
 logging.basicConfig(format=FORMAT)
 log.setLevel("INFO")
 
+
 def make_tarfile(output_path, input_path, name):
     with tarfile.open(output_path + '/' + name, "w:gz") as tar:
         tar.add(input_path, arcname=os.path.basename(input_path))
 
+
 DMRange = namedtuple(
     "DMRange",
     ["low_dm", "high_dm", "dm_step", "tscrunch"])
+
 
 class DDPlan(object):
     def __init__(self):
@@ -47,7 +50,8 @@ class DDPlan(object):
         for line in plan.splitlines():
             low_dm, high_dm, dm_step, tscrunch = list(map(float, line.split()[:4]))
             inst.add_range(low_dm, high_dm, dm_step, int(tscrunch))
-        return inst    
+        return inst
+
 
 async def shell_call(cmd, cwd="./"):
     log.info(f"Shell call: {cmd}")
@@ -60,6 +64,7 @@ async def shell_call(cmd, cwd="./"):
     if retcode != 0:
         raise Exception(f"Process return-code {retcode}")
 
+
 def delete_files_if_exists(dir):
     files = os.listdir(dir)
     for file in files:
@@ -67,23 +72,24 @@ def delete_files_if_exists(dir):
             log.warning(f"Removing existing file with name {os.path.join(dir, file)}")
             os.remove(os.path.join(dir, file))
 
+
 async def transientx(input_fils, output_dir,
-                    ddplan_args,
-                    fscrunch,
-                    snr_threshold,
-                    max_search_width,
-                    rfi_flags,
-                    num_threads = 12,
-                    zapping_threshold = 3.0,
-                    snrloss = 0.1,
-                    segment_length = 1.0,
-                    overlap = 0.1,
-                    dbscan_radius = 1.,
-                    dbscan_k = 2,
-                    minimum_points_limit = 5,
-                    baseline_pre = 0.0,
-                    baseline_post = 0.1,
-                    drop_cands_with_maxwidth=True):
+                     ddplan_args,
+                     fscrunch,
+                     snr_threshold,
+                     max_search_width,
+                     rfi_flags,
+                     num_threads = 12,
+                     zapping_threshold = 3.0,
+                     snrloss = 0.1,
+                     segment_length = 1.0,
+                     overlap = 0.1,
+                     dbscan_radius = 1.,
+                     dbscan_k = 2,
+                     minimum_points_limit = 5,
+                     baseline_pre = 0.0,
+                     baseline_post = 0.1,
+                     drop_cands_with_maxwidth=True):
     delete_files_if_exists(output_dir)
 
     # generate ddplan file
@@ -114,6 +120,7 @@ async def transientx(input_fils, output_dir,
         delete_files_if_exists(output_dir)
         raise error
 
+
 def select_data_products(beam, filter_func=None):
     dp_list = []
     for dp in (beam["data_products"]):
@@ -123,6 +130,7 @@ def select_data_products(beam, filter_func=None):
         else:
             dp_list.append(dp["filename"])
     return dp_list
+
 
 async def transientx_pipeline(data, status_callback):
     # Limit core size to avoid ephemeral-storage overflows
@@ -135,12 +143,7 @@ async def transientx_pipeline(data, status_callback):
 
     log.info(f"Creating output directory: {output_dir}")
     # Make output dir
-    try:
-        shell_call("mkdir -p %s" % (output_dir))
-    except Exception:
-        log.info("Already made subdirectory")
-        pass
-
+    os.makedirs(output_dir, exist_ok=True)
     output_dps = []
 
     for pointing in data["data"]["pointings"]:
@@ -158,10 +161,7 @@ async def transientx_pipeline(data, status_callback):
                 processing_dir = os.path.join(output_dir, "processing/")
             os.makedirs(processing_dir, exist_ok=True)
             try:
-
-                # First merge the filterbanks and output to processing directory
-                # this is done at whatever the native resolution of the data is
-                log.info("Executing transient search")                
+                log.info("Executing transient search")
                 fscrunch = processing_args.get("fscrunch", 1)
                 snr_threshold = processing_args.get("snr_threshold", 7)
                 max_search_width = processing_args.get("max_search_width", 0.05)
@@ -173,7 +173,7 @@ async def transientx_pipeline(data, status_callback):
                     cmask = cmask.strip()
                     if cmask:
                         try:
-                            rfi_flags +=" " + " ".join(["zap {} {}".format(
+                            rfi_flags += " " + " ".join(["zap {} {}".format(
                                 *i.split(":")) for i in cmask.split(",")])
                         except Exception as error:
                             raise Exception("Unable to parse channel mask: {}".format(
@@ -181,11 +181,11 @@ async def transientx_pipeline(data, status_callback):
 
                 status_callback("Transient search")
                 await transientx(dps, processing_dir,
-                                ddplan_args,
-                                fscrunch,
-                                snr_threshold,
-                                max_search_width,
-                                rfi_flags)
+                                 ddplan_args,
+                                 fscrunch,
+                                 snr_threshold,
+                                 max_search_width,
+                                 rfi_flags)
 
                 # Decide tar name
                 tar_name = "%d_%d_transientx_candidates.tar.gz"  %(pointing["id"], beam_ID)

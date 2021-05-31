@@ -1,6 +1,7 @@
 import optparse
 import logging
 import os
+import glob
 import tarfile
 import shutil
 import asyncio
@@ -57,13 +58,12 @@ async def shell_call(cmd, cwd="./"):
     log.info(f"Shell call: {cmd}")
     proc = await asyncio.create_subprocess_shell(
         cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+        stdout=None,
+        stderr=None,
         cwd=cwd)
     retcode = await proc.wait()
     if retcode != 0:
         raise Exception(f"Process return-code {retcode}")
-
 
 def delete_files_if_exists(dir):
     files = os.listdir(dir)
@@ -187,6 +187,9 @@ async def transientx_pipeline(data, status_callback):
                                  max_search_width,
                                  rfi_flags)
 
+                # count number of candidates
+                ncands = len(glob.glob(processing_dir+"/*.png"))
+
                 # Decide tar name
                 tar_name = "%d_%d_transientx_candidates.tar.gz"  %(pointing["id"], beam_ID)
 
@@ -202,7 +205,7 @@ async def transientx_pipeline(data, status_callback):
                     directory=output_dir,
                     beam_id=beam_ID,
                     pointing_id=pointing["id"],
-                    metainfo=json.dumps("tar_file:transientx_candidates")
+                    metainfo=json.dumps({"number_of_candidates":ncands, "fscrunch":fscrunch, "snr_threshold":snr_threshold, "rfi_flags":rfi_flags, "ddplan_args":ddplan_args})
                 )
 
                 output_dps.append(dp)

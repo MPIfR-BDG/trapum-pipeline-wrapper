@@ -67,14 +67,20 @@ def slices(csv):
 
 
 async def shell_call(cmd):
-    log.info(f"Shell call: {cmd}")
-    proc = await asyncio.create_subprocess_shell(
-        cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE)
-    retcode = await proc.wait()
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=True)
+    while proc.poll() is None:
+        await asyncio.sleep(1)
+    retcode = proc.poll()
     if retcode != 0:
-        raise Exception(f"Process return-code {retcode}")
+        stdout = proc.stdout.read()
+        stderr = proc.stderr.read()
+        raise subprocess.SubprocessError(
+            "Error on '{}' call:\nStdout: {}\nStderr: {}".format(
+                cmd, stdout, stderr))
+    return retcode
 
 
 def delete_file_if_exists(output_fil):

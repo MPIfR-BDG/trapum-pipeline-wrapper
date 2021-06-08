@@ -67,20 +67,14 @@ def slices(csv):
 
 
 async def shell_call(cmd):
-    proc = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        shell=True)
-    while proc.poll() is None:
-        await asyncio.sleep(1)
-    retcode = proc.poll()
+    log.info(f"Shell call: {cmd}")
+    proc = await asyncio.create_subprocess_shell(
+        cmd,
+        stdout=None,
+        stderr=None)
+    retcode = await proc.wait()
     if retcode != 0:
-        stdout = proc.stdout.read()
-        stderr = proc.stderr.read()
-        raise subprocess.SubprocessError(
-            "Error on '{}' call:\nStdout: {}\nStderr: {}".format(
-                cmd, stdout, stderr))
-    return retcode
+        raise Exception(f"Process return-code {retcode}")
 
 
 def delete_file_if_exists(output_fil):
@@ -440,3 +434,10 @@ if __name__ == '__main__':
     processor = mongo_wrapper.mongo_consumer_from_opts(opts)
     pipeline_wrapper = TrapumPipelineWrapper(opts, pipeline)
     processor.process(pipeline_wrapper.on_receive)
+
+
+
+
+
+
+

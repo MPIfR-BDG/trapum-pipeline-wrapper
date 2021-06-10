@@ -70,8 +70,8 @@ async def shell_call(cmd):
     log.info(f"Shell call: {cmd}")
     proc = await asyncio.create_subprocess_shell(
         cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE)
+        stdout=None,
+        stderr=None)
     retcode = await proc.wait()
     if retcode != 0:
         raise Exception(f"Process return-code {retcode}")
@@ -434,3 +434,10 @@ if __name__ == '__main__':
     processor = mongo_wrapper.mongo_consumer_from_opts(opts)
     pipeline_wrapper = TrapumPipelineWrapper(opts, pipeline)
     processor.process(pipeline_wrapper.on_receive)
+
+
+
+
+
+
+

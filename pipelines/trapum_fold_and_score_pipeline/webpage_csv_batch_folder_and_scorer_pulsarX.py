@@ -347,7 +347,20 @@ def fold_and_score_pipeline(data, status_callback):
                 # so rename these with processing ID + corrected indices
                 # so that they don't get overwritten by the next batch
                 ar_files = glob.glob('{}/J0000-00*.ar'.format(tmp_dir))
-                for ar in ar_files:
+
+                png_files = glob.glob('{}/J0000-00*.png'.format(tmp_dir))
+                for ar_file in ar_files:
+                    png_file = os.path.splitext(ar_file)[0]+'.png'
+                    if png_file not in png_files:
+                        log.info("replot {}".format(png_file))
+                        log.info("dmffdot --plotx -f {}".format(os.path.basename(ar_file)))
+                        try:
+                            subprocess.check_call("dmffdot --plotx -f {}".format(os.path.basename(ar_file)), shell=True, cwd=tmp_dir)
+                        except Exception as error:
+                            log.info("replot failed {}".format(png_file))
+                            raise error
+
+		for ar in ar_files:
                     cand_id = int(ar.split('_')[-1].rstrip('.ar'))
                     cand_id += batch_start
                     out_ar = '_'.join(ar.split('_')[:-1]) + '_{0:05d}.ar'.format(cand_id)
@@ -382,10 +395,13 @@ def fold_and_score_pipeline(data, status_callback):
                 cwd=tmp_dir)  # Remove the input csv files
 
             # Copy over the relevant meta file
-            meta_file_path = input_fil_list[0].split(beam_name)[0]
-            subprocess.check_call(
-                "cp %s/apsuse.meta %s.meta" %
-                (meta_file_path, utc_start), shell=True, cwd=tmp_dir)
+            try:
+                meta_file_path = input_fil_list[0].split(beam_name)[0]
+                subprocess.check_call(
+                    "cp %s/apsuse.meta %s.meta" %
+                    (meta_file_path, utc_start), shell=True, cwd=tmp_dir)
+            except Exception as error:
+                log.warning("Unable to fetch apsuse.meta file: {}".format(str(error)))
 
             # Decide tar name
             tar_name = os.path.basename(

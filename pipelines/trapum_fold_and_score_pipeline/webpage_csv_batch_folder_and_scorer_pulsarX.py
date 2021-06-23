@@ -26,6 +26,7 @@ log.setLevel('INFO')
 
 TEMPLATE = "/home/psr/software/PulsarX/include/template/meerkat_fold.template"
 
+
 def make_tarfile(output_path, input_path, name):
     with tarfile.open(output_path + '/' + name, "w:gz") as tar:
         tar.add(input_path, arcname=os.path.basename(input_path))
@@ -42,7 +43,8 @@ def period_modified(p0, pdot, no_of_samples, tsamp, fft_size):
     """
     if (fft_size == 0.0):
         return p0 - pdot * \
-            float(1 << (no_of_samples.bit_length() - 1) - no_of_samples) * tsamp / 2
+            float(1 << (no_of_samples.bit_length() - 1) -
+                  no_of_samples) * tsamp / 2
     else:
         return p0 - pdot * float(fft_size - no_of_samples) * tsamp / 2
 
@@ -79,7 +81,8 @@ def generate_pulsarX_cand_file(
         batch_start,
         batch_stop):
 
-    cand_file_path = '%s/%s_%s_%d_%d_cands.candfile' % (tmp_dir, beam_name, utc_name, batch_start, batch_stop-1)
+    cand_file_path = '%s/%s_%s_%d_%d_cands.candfile' % (
+        tmp_dir, beam_name, utc_name, batch_start, batch_stop-1)
     source_name_prefix = "%s_%s" % (beam_name, utc_name)
     with open(cand_file_path, 'w') as f:
         f.write("#id DM accel F0 F1 S/N\n")
@@ -146,7 +149,7 @@ def parse_cuts(cuts, tobs):
         return float(cuts)
     else:
         for cut in cuts.split(","):
-            low,high,value = list(map(float, cut.split(":")))
+            low, high, value = list(map(float, cut.split(":")))
             if tobs >= low and tobs < high:
                 return value
         else:
@@ -220,7 +223,8 @@ def fold_and_score_pipeline(data, status_callback):
                 (beam_ID, processing_args['snr_cutoff']))
             snr_cut_cands = df[df['snr'] > float(
                 processing_args['snr_cutoff'])]
-            period_cuts = processing_args.get('period_cutoffs', "0:inf:0.0000000001")
+            period_cuts = processing_args.get(
+                'period_cutoffs', "0:inf:0.0000000001")
             obs_length = get_obs_length(input_fil_list)
             log.info("Parsing period cuts: {}".format(period_cuts))
             period_cut = parse_cuts(period_cuts, obs_length)
@@ -228,7 +232,8 @@ def fold_and_score_pipeline(data, status_callback):
             snr_cut_cands = snr_cut_cands[snr_cut_cands['period'] > period_cut]
             single_beam_cands = snr_cut_cands[snr_cut_cands['beam_id'] == beam_ID]
             single_beam_cands.sort_values('snr', inplace=True, ascending=False)
-            log.info("Found {} candidates to fild".format(len(single_beam_cands)))
+            log.info("Found {} candidates to fild".format(
+                len(single_beam_cands)))
             print(single_beam_cands)
 
             # If no candidates found in this beam, skip to next message
@@ -247,14 +252,16 @@ def fold_and_score_pipeline(data, status_callback):
             num_cands_total = single_beam_cands_fold_limited.shape[0]
             nperbatch = processing_args.get('batch_size', 100)
             for batch_number, batch_start in enumerate(range(0, num_cands_total, nperbatch)):
-                status_callback("Folding batch {} of {}".format(batch_number, int(num_cands_total/nperbatch + 0.5)))
+                status_callback("Folding batch {} of {}".format(
+                    batch_number, int(num_cands_total/nperbatch + 0.5)))
 
                 batch_stop = min(batch_start+nperbatch, num_cands_total)
                 single_beam_cands_fold_limited = single_beam_cands[batch_start:batch_stop]
 
                 # Read parameters and fold
                 log.info("Reading all necessary candidate parameters")
-                cand_periods = single_beam_cands_fold_limited['period'].to_numpy()
+                cand_periods = single_beam_cands_fold_limited['period'].to_numpy(
+                )
                 cand_accs = single_beam_cands_fold_limited['acc'].to_numpy()
                 cand_dms = single_beam_cands_fold_limited['dm'].to_numpy()
                 cand_snrs = single_beam_cands_fold_limited['snr'].to_numpy()
@@ -268,7 +275,8 @@ def fold_and_score_pipeline(data, status_callback):
                 root = tree.getroot()
                 tsamp = float(root.find("header_parameters/tsamp").text)
                 fft_size = float(root.find('search_parameters/size').text)
-                no_of_samples = int(root.find("header_parameters/nsamples").text)
+                no_of_samples = int(
+                    root.find("header_parameters/nsamples").text)
 
                 log.info("Modifying period to middle epoch reference of file")
 
@@ -299,13 +307,15 @@ def fold_and_score_pipeline(data, status_callback):
                         cand_snrs,
                         batch_start,
                         batch_stop)
-                    log.info("Predictor file ready for folding: %s" % (pred_file))
+                    log.info("Predictor file ready for folding: %s" %
+                             (pred_file))
                 except Exception as error:
                     log.error(error)
                     log.error("Predictor candidate file generation failed")
 
                 # Run PulsarX
-                log.info("PulsarX folding  cands {}-{} out of {}".format(batch_start,batch_stop-1,num_cands_total))
+                log.info("PulsarX folding  cands {}-{} out of {}".format(
+                    batch_start, batch_stop-1, num_cands_total))
                 log.info("PulsarX will be launched with the following command:")
 
                 cmask = processing_args.get("channel_mask", None)
@@ -320,9 +330,12 @@ def fold_and_score_pipeline(data, status_callback):
                             raise Exception("Unable to parse channel mask: {}".format(
                                 str(error)))
 
-                fast_nbins = processing_args.get("fast_nbins", 64)    # Nbins for candidates < 100 ms
-                slow_nbins = processing_args.get("slow_nbins", 128)   # Nbins for candidates > 100 ms
-                nbins_string = "-b {} --nbinplan 0.1 {}".format(fast_nbins, slow_nbins)
+                # Nbins for candidates < 100 ms
+                fast_nbins = processing_args.get("fast_nbins", 64)
+                # Nbins for candidates > 100 ms
+                slow_nbins = processing_args.get("slow_nbins", 128)
+                nbins_string = "-b {} --nbinplan 0.1 {}".format(
+                    fast_nbins, slow_nbins)
                 subint_length = processing_args.get("subint_length", 10.0)
                 nsubband = processing_args.get("nsubband", 64)
 
@@ -331,26 +344,44 @@ def fold_and_score_pipeline(data, status_callback):
                 elif 'cfbf' in beam_name:
                     beam_tag = "-i {}".format(int(beam_name.strip("cfbf")))
                 else:
-                    log.warning("Invalid beam name. Folding with default beam name")
+                    log.warning(
+                        "Invalid beam name. Folding with default beam name")
                     beam_tag = ""
 
                 script = "psrfold_fil --plotx -v -t 12 --candfile {} -n {} {} {} --template {} --clfd 2.0 -L {} -f {} --rfi zdot {}".format(
-                            pred_file, nsubband, nbins_string, beam_tag, TEMPLATE, subint_length, input_filenames, zap_string)
+                    pred_file, nsubband, nbins_string, beam_tag, TEMPLATE, subint_length, input_filenames, zap_string)
                 log.info(script)
                 try:
                     subprocess.check_call(script, shell=True, cwd=tmp_dir)
                 except Exception as error:
                     raise error
-                log.info("PulsarX fold of cands {}-{} out of {} successful".format(batch_start,batch_stop-1,num_cands_total))
+                log.info("PulsarX fold of cands {}-{} out of {} successful".format(
+                    batch_start, batch_stop-1, num_cands_total))
 
                 # New files from PulsarX all get the 'J0000-00' prefix
                 # so rename these with processing ID + corrected indices
                 # so that they don't get overwritten by the next batch
                 ar_files = glob.glob('{}/J0000-00*.ar'.format(tmp_dir))
+
+                png_files = glob.glob('{}/J0000-00*.png'.format(tmp_dir))
+                for ar_file in ar_files:
+                    png_file = os.path.splitext(ar_file)[0]+'.png'
+                    if png_file not in png_files:
+                        log.info("replot {}".format(png_file))
+                        log.info(
+                            "dmffdot --plotx -f {}".format(os.path.basename(ar_file)))
+                        try:
+                            subprocess.check_call(
+                                "dmffdot --plotx -f {}".format(os.path.basename(ar_file)), shell=True, cwd=tmp_dir)
+                        except Exception as error:
+                            log.info("replot failed {}".format(png_file))
+                            raise error
+
                 for ar in ar_files:
                     cand_id = int(ar.split('_')[-1].rstrip('.ar'))
                     cand_id += batch_start
-                    out_ar = '_'.join(ar.split('_')[:-1]) + '_{0:05d}.ar'.format(cand_id)
+                    out_ar = '_'.join(
+                        ar.split('_')[:-1]) + '_{0:05d}.ar'.format(cand_id)
                     out_ar = out_ar.replace('J0000-00', str(processing_id))
                     os.rename(ar, out_ar)
 
@@ -358,13 +389,17 @@ def fold_and_score_pipeline(data, status_callback):
                 for png in png_files:
                     cand_id = int(png.split('_')[-1].rstrip('.png'))
                     cand_id += batch_start
-                    out_png = '_'.join(png.split('_')[:-1]) + '_{0:05d}.png'.format(cand_id)
+                    out_png = '_'.join(
+                        png.split('_')[:-1]) + '_{0:05d}.png'.format(cand_id)
                     out_png = out_png.replace('J0000-00', str(processing_id))
-                    os.rename(png,out_png)
+                    os.rename(png, out_png)
 
-                old_cand_file = glob.glob('{}/J0000-00*.cands'.format(tmp_dir))[0]
-                new_cand_file = old_cand_file.replace('J0000-00', str(processing_id))
-                new_cand_file = new_cand_file.rstrip('.cands')+'_{0:05d}_{1:05d}.cands'.format(batch_start, batch_stop-1)
+                old_cand_file = glob.glob(
+                    '{}/J0000-00*.cands'.format(tmp_dir))[0]
+                new_cand_file = old_cand_file.replace(
+                    'J0000-00', str(processing_id))
+                new_cand_file = new_cand_file.rstrip(
+                    '.cands')+'_{0:05d}_{1:05d}.cands'.format(batch_start, batch_stop-1)
 
                 os.rename(old_cand_file, new_cand_file)
 
@@ -382,10 +417,14 @@ def fold_and_score_pipeline(data, status_callback):
                 cwd=tmp_dir)  # Remove the input csv files
 
             # Copy over the relevant meta file
-            meta_file_path = input_fil_list[0].split(beam_name)[0]
-            subprocess.check_call(
-                "cp %s/apsuse.meta %s.meta" %
-                (meta_file_path, utc_start), shell=True, cwd=tmp_dir)
+            try:
+                meta_file_path = input_fil_list[0].split(beam_name)[0]
+                subprocess.check_call(
+                    "cp %s/apsuse.meta %s.meta" %
+                    (meta_file_path, utc_start), shell=True, cwd=tmp_dir)
+            except Exception as error:
+                log.warning(
+                    "Unable to fetch apsuse.meta file: {}".format(str(error)))
 
             # Decide tar name
             tar_name = os.path.basename(
@@ -398,7 +437,7 @@ def fold_and_score_pipeline(data, status_callback):
                 dfs.append(pd.read_csv(cf,
                                        skiprows=11,
                                        delim_whitespace=True))
-            df1 = pd.concat(dfs,axis=0,ignore_index=True)
+            df1 = pd.concat(dfs, axis=0, ignore_index=True)
             df2 = pd.read_csv("{}/pics_scores.txt".format(tmp_dir))
             df1['png_file'] = [
                 output_dir +
@@ -457,7 +496,7 @@ def fold_and_score_pipeline(data, status_callback):
             output_dps.append(dp)
 
     tend = time.time()
-    print ("Time taken is : %f s" % (tend - tstart))
+    print("Time taken is : %f s" % (tend - tstart))
     return output_dps
 
 

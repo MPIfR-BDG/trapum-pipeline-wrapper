@@ -89,7 +89,7 @@ async def transientx(input_fils, output_dir,
                      minimum_points_limit = 5,
                      baseline_pre = 0.0,
                      baseline_post = 0.1,
-                     drop_cands_with_maxwidth=True):
+                     drop_cands_with_maxwidth=False):
     delete_files_if_exists(output_dir)
 
     # generate ddplan file

@@ -23,6 +23,7 @@ def make_tarfile(output_path, input_path, name):
     with tarfile.open(output_path + '/' + name, "w:gz") as tar:
         tar.add(input_path, arcname=os.path.basename(input_path))
 
+
 async def shell_call(cmd, cwd="./"):
     log.info(f"Shell call: {cmd}")
     proc = await asyncio.create_subprocess_shell(
@@ -34,31 +35,37 @@ async def shell_call(cmd, cwd="./"):
     if retcode != 0:
         raise Exception(f"Process return-code {retcode}")
 
+
 def delete_files_if_exists(dir):
     files = os.listdir(dir)
     for file in files:
         if file.endswith(".cands") or file.endswith(".png") or file.endswith(".txt"):
-            log.warning(f"Removing existing file with name {os.path.join(dir, file)}")
+            log.warning(
+                f"Removing existing file with name {os.path.join(dir, file)}")
             os.remove(os.path.join(dir, file))
 
 
 async def transientx_replot(input_fils, input_txdps, output_dir,
-                     tscrunch,
-                     fscrunch,
-                     dm_cutoff,
-                     width_cutoff,
-                     snr_cutoff,
-                     zap_flags,
-                     nwidth = 20,
-                     num_threads = 12,                     
-                     zapping_threshold = 3.0,
-                     snrloss = 0.1):
+                            tscrunch,
+                            fscrunch,
+                            dm_cutoff,
+                            width_cutoff,
+                            snr_cutoff,
+                            zap_flags,
+                            nwidth=20,
+                            num_threads=12,
+                            zapping_threshold=3.0,
+                            snrloss=0.1):
     delete_files_if_exists(output_dir)
 
+    candfile = None
     txtar = tarfile.open(input_txdps)
     for file in txtar.getmembers():
         if file.name.endswith('.cands'):
             candfile = file
+    if candfile is None:
+        return
+
     txtar.extractall(output_dir, members=[candfile])
 
     cmd = f"replot_fil -v -t {num_threads} --zapthre {zapping_threshold} --td {tscrunch} --fd {fscrunch} --zdot --kadane 4 4 7 --clip 4 4 7 --dmcutoff {dm_cutoff} --widthcutoff {width_cutoff} --snrcutoff {snr_cutoff} --snrloss {snrloss} --zap {zap_flags} --candfile {candfile.name} --clean -f {' '.join(input_fils)}"
@@ -109,7 +116,8 @@ async def transientx_replot_pipeline(data, status_callback):
 
             if processing_args["temp_filesystem"] == "/beeond/":
                 log.info("Running on Beeond")
-                processing_dir = os.path.join(BEEOND_TEMP_DIR, str(processing_id))
+                processing_dir = os.path.join(
+                    BEEOND_TEMP_DIR, str(processing_id))
             else:
                 log.info("Running on BeeGFS")
                 processing_dir = os.path.join(output_dir, "processing/")
@@ -135,18 +143,19 @@ async def transientx_replot_pipeline(data, status_callback):
 
                 status_callback("Transient replot")
                 await transientx_replot(dps, dps_tx[-1], processing_dir,
-                                 tscrunch,
-                                 fscrunch,
-                                 dm_cutoff,
-                                 width_cutoff,
-                                 snr_cutoff,
-                                 zap_flags)
+                                        tscrunch,
+                                        fscrunch,
+                                        dm_cutoff,
+                                        width_cutoff,
+                                        snr_cutoff,
+                                        zap_flags)
 
                 # count number of candidates
                 ncands = len(glob.glob(processing_dir+"/*.png"))
 
                 # Decide tar name
-                tar_name = "%d_%d_transientx_candidates_replot.tar.gz"  %(pointing["id"], beam_ID)
+                tar_name = "%d_%d_transientx_candidates_replot.tar.gz" % (
+                    pointing["id"], beam_ID)
 
                 # Create tar file of tmp directory in output directory
                 log.info("Tarring up all transientx output files")
@@ -160,7 +169,8 @@ async def transientx_replot_pipeline(data, status_callback):
                     directory=output_dir,
                     beam_id=beam_ID,
                     pointing_id=pointing["id"],
-                    metainfo=json.dumps({"number_of_candidates":ncands, "tscrunch":tscrunch, "fscrunch":fscrunch, "dm_cutoff":dm_cutoff, "width_cutoff":width_cutoff, "snr_cutoff":snr_cutoff, "zap_flags":zap_flags})
+                    metainfo=json.dumps({"number_of_candidates": ncands, "tscrunch": tscrunch, "fscrunch": fscrunch,
+                                        "dm_cutoff": dm_cutoff, "width_cutoff": width_cutoff, "snr_cutoff": snr_cutoff, "zap_flags": zap_flags})
                 )
 
                 output_dps.append(dp)

@@ -248,7 +248,7 @@ def reoptimize_and_score_pipeline(data, status_callback):
 
             # Decide tar name
             tar_name = os.path.basename(
-                output_dir) + "_folds_and_scores.tar.gz"
+                output_dir) + "_reoptimize_and_scores.tar.gz"
 
             # Generate new metadata csv file
             cand_files = sorted(glob.glob("{}/*.cands".format(tmp_dir)))

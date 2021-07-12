@@ -79,6 +79,7 @@ async def transientx(input_fils, output_dir,
                      snr_threshold,
                      max_search_width,
                      rfi_flags,
+                     rootname = "J0000-00",
                      num_threads = 12,
                      zapping_threshold = 3.0,
                      snrloss = 0.1,
@@ -110,7 +111,7 @@ async def transientx(input_fils, output_dir,
     drop_flag = ""
     if drop_cands_with_maxwidth:
         drop_flag = "--drop"
-    cmd = f"transientx_fil -v -t {num_threads} --zapthre {zapping_threshold} --fd {fscrunch} --overlap {overlap} --ddplan {ddplan_fname} --thre {snr_threshold} --maxw {max_search_width} --snrloss {snrloss} -l {segment_length} -r {dbscan_radius} -k {dbscan_k} --minpts {minimum_points_limit} --baseline {baseline_pre} {baseline_post} {drop_flag} -z {rfi_flags} -f {' '.join(input_fils)}"
+    cmd = f"transientx_fil -v -o {rootname} -t {num_threads} --zapthre {zapping_threshold} --fd {fscrunch} --overlap {overlap} --ddplan {ddplan_fname} --thre {snr_threshold} --maxw {max_search_width} --snrloss {snrloss} -l {segment_length} -r {dbscan_radius} -k {dbscan_k} --minpts {minimum_points_limit} --baseline {baseline_pre} {baseline_post} {drop_flag} -z {rfi_flags} -f {' '.join(input_fils)}"
 
     # run transientx
     try:
@@ -185,7 +186,8 @@ async def transientx_pipeline(data, status_callback):
                                  fscrunch,
                                  snr_threshold,
                                  max_search_width,
-                                 rfi_flags)
+                                 rfi_flags,
+                                 "%d_%d" % (pointing["id"], beam_ID))
 
                 # count number of candidates
                 ncands = len(glob.glob(processing_dir+"/*.png"))

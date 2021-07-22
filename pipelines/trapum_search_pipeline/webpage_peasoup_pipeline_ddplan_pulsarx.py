@@ -45,7 +45,8 @@ class DDPlan(object):
     def from_string(cls, plan):
         inst = cls()
         for line in plan.splitlines():
-            low_dm, high_dm, dm_step, tscrunch = list(map(float, line.split()[:4]))
+            low_dm, high_dm, dm_step, tscrunch = list(
+                map(float, line.split()[:4]))
             inst.add_range(low_dm, high_dm, dm_step, int(tscrunch))
         return inst
 
@@ -82,8 +83,10 @@ def delete_files_if_exists(dir):
     files = os.listdir(dir)
     for file in files:
         if file.endswith(".fil") or file.endswith(".json"):
-            log.warning(f"Removing existing file with name {os.path.join(dir, file)}")
+            log.warning(
+                f"Removing existing file with name {os.path.join(dir, file)}")
             os.remove(os.path.join(dir, file))
+
 
 def delete_file_if_exists(output_fil):
     if os.path.isfile(output_fil):
@@ -99,17 +102,17 @@ def compare_lengths(expected, actual, tolerance=0):
         raise Exception("Digifil output file length error")
 
 
-async def filtool(input_fils, output_dir, 
-                    rootname,
-                    ddplan,
-                    fscrunch,
-                    rfi_flags = "zdot",
-                    num_threads = 2,
-                    nbits = 8,
-                    outmean = 128.,
-                    outstd = 6.,
-                    segment_length = 1.0,
-                    zapping_threshold = 4.):
+async def filtool(input_fils, output_dir,
+                  rootname,
+                  ddplan,
+                  fscrunch,
+                  rfi_flags="zdot",
+                  num_threads=2,
+                  nbits=8,
+                  outmean=128.,
+                  outstd=6.,
+                  segment_length=1.0,
+                  zapping_threshold=4.):
     delete_files_if_exists(output_dir)
 
     # generate filplan file
@@ -120,12 +123,12 @@ async def filtool(input_fils, output_dir,
         plans = []
         for dm_range in ddplan:
             plans.append({"time_downsample": dm_range.tscrunch,
-                    "frequency_downsample": 1,
-                    "baseline_width": 0.,
-                    "dataout_mean": outmean,
-                    "dataout_std": outstd,
-                    "dataout_nbits": nbits,
-                    "rfi_flags": ""})
+                          "frequency_downsample": 1,
+                          "baseline_width": 0.,
+                          "dataout_mean": outmean,
+                          "dataout_std": outstd,
+                          "dataout_nbits": nbits,
+                          "rfi_flags": ""})
         json.dump(plans, filplan_file)
 
     cmd = f"filtool -v -t {num_threads} --zapthre {zapping_threshold} --fd {fscrunch} --filplan {filplan_fname} -l {segment_length} --baseline {0} {0} -z {rfi_flags} -o {rootname} -f {' '.join(input_fils)}"
@@ -260,7 +263,8 @@ async def peasoup_pipeline(data, status_callback):
 
             if processing_args["temp_filesystem"] == "/beeond/":
                 log.info("Running on Beeond")
-                processing_dir = os.path.join(BEEOND_TEMP_DIR, str(processing_id))
+                processing_dir = os.path.join(
+                    BEEOND_TEMP_DIR, str(processing_id))
             else:
                 log.info("Running on BeeGFS")
                 processing_dir = os.path.join(output_dir, "processing/")
@@ -271,13 +275,16 @@ async def peasoup_pipeline(data, status_callback):
                 # this is done at whatever the native resolution of the data is
                 log.info("Executing file merge")
                 fscrunch = processing_args.get("fscrunch", 1)
-                status_callback("Merging filterbanks and perform rfi mitigation")
+                rfi_flags = processing_args.get("rfi_flags", "zdot")
+                status_callback(
+                    "Merging filterbanks and perform rfi mitigation")
 
-                await filtool(dps, processing_dir, 
-                            f"temp_merge_p_id_{processing_id}",
-                            ddplan,
-                            fscrunch)
-                
+                await filtool(dps, processing_dir,
+                              f"temp_merge_p_id_{processing_id}",
+                              ddplan,
+                              fscrunch,
+                              rfi_flags=rfi_flags)
+
                 filterbank_headers = [get_fil_dict(dp) for dp in dps]
 
                 # Determine fft_size for Peasoup call
@@ -298,7 +305,8 @@ async def peasoup_pipeline(data, status_callback):
                 log.info("Determining channel mask")
                 chan_mask_csv = processing_args["channel_mask"]
                 chan_mask_file = "channel_mask.ascii"
-                generate_chan_mask(chan_mask_csv, filterbank_headers[0], chan_mask_file)
+                generate_chan_mask(
+                    chan_mask_csv, filterbank_headers[0], chan_mask_file)
 
                 # Determine birdie list to use
                 log.info("Determining birdie list")
@@ -313,9 +321,10 @@ async def peasoup_pipeline(data, status_callback):
                 tscrunches = [dm_range.tscrunch for dm_range in ddplan]
 
                 log.info("Starting loop over DDPlan")
-                for k,dm_range in enumerate(ddplan):
+                for k, dm_range in enumerate(ddplan):
                     log.info(f"Processing DM range: {dm_range}")
-                    search_file = os.path.join(processing_dir, f"temp_merge_p_id_{processing_id}_{k+1:02d}.fil")
+                    search_file = os.path.join(
+                        processing_dir, f"temp_merge_p_id_{processing_id}_{k+1:02d}.fil")
                     log.info(f"Searching file: {search_file}")
                     dm_list_file = "dm_list.ascii"
                     dmfile_from_dmrange(dm_range, dm_list_file)
@@ -324,7 +333,8 @@ async def peasoup_pipeline(data, status_callback):
                     peasoup_output_dir = os.path.join(
                         processing_dir,
                         f"dm_range_{dm_range.low_dm:03f}_{dm_range.high_dm:03f}")
-                    status_callback(f"Peasoup (DM: {dm_range.low_dm} - {dm_range.high_dm})")
+                    status_callback(
+                        f"Peasoup (DM: {dm_range.low_dm} - {dm_range.high_dm})")
                     await peasoup(
                         search_file, dm_list_file,
                         chan_mask_file, birdie_list_file,

@@ -50,11 +50,7 @@ def period_modified(p0, pdot, no_of_samples, tsamp, fft_size):
 
 
 def remove_dir(dir_name):
-    if 'TEMP' in dir_name:
-        shutil.rmtree(dir_name)
-    else:
-        log.error("Directory not deleted. Not a temporary folder!")
-
+    shutil.rmtree(dir_name)
 
 def untar_file(tar_file, tmp_dir):
     try:
@@ -179,7 +175,10 @@ def fold_and_score_pipeline(data, status_callback):
         pass
 
     # Make temporary folder to keep any temporary outputs
-    tmp_dir = '/beeond/PROCESSING/TEMP/%d' % processing_id
+    if processing_args.get("temp_filesystem", "/beegfs/"):
+        tmp_dir = os.path.join(output_dir, "processing/")
+    else:
+        tmp_dir = '/beeond/PROCESSING/TEMP/%d' % processing_id
     try:
         subprocess.check_call("mkdir -p %s" % (tmp_dir), shell=True)
     except BaseException:
@@ -478,7 +477,7 @@ def fold_and_score_pipeline(data, status_callback):
 
             # Remove contents in temporary directory
             try:
-                remove_dir(tmp_dir)
+                os.system("rm -rf {}".format(tmp_dir))
                 log.info("Removed temporary files")
             except Exception as error:
                 log.exception("Unable to remove temp dir")

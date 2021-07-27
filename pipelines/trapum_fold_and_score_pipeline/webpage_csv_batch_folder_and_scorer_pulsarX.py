@@ -179,6 +179,7 @@ def fold_and_score_pipeline(data, status_callback):
         tmp_dir = os.path.join(output_dir, "processing/")
     else:
         tmp_dir = '/beeond/PROCESSING/TEMP/%d' % processing_id
+    orig_tmp_dir = tmp_dir
     try:
         subprocess.check_call("mkdir -p %s" % (tmp_dir), shell=True)
     except BaseException:
@@ -477,7 +478,7 @@ def fold_and_score_pipeline(data, status_callback):
 
             # Remove contents in temporary directory
             try:
-                os.system("rm -rf {}".format(tmp_dir))
+                os.system("rm -rf {}".format(orig_tmp_dir))
                 log.info("Removed temporary files")
             except Exception as error:
                 log.exception("Unable to remove temp dir")

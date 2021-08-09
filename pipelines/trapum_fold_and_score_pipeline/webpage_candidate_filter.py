@@ -67,7 +67,7 @@ def candidate_filter_pipeline(data, status_callback):
 
         # Make temporary folder to keep any temporary outputs
         
-        tmp_dir = '/beegfs/PROCESSING/TEMP/%d' % processing_id
+        tmp_dir = '/beegfs/PROCESSING/TRAPUM/TEMP/%d' % processing_id
         #tmp_dir = '/beeond/PROCESSING/TEMP/%d' % processing_id
         
         try:

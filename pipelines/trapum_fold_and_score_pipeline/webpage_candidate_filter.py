@@ -66,6 +66,7 @@ def candidate_filter_pipeline(data, status_callback):
                 beam_id_list.append(beam["id"])
 
         # Make temporary folder to keep any temporary outputs
+        
         tmp_dir = '/beeond/PROCESSING/TEMP/%d' % processing_id
         try:
             subprocess.check_call("mkdir -p %s" % (tmp_dir), shell=True)

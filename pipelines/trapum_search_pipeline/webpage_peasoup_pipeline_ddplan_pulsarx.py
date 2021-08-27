@@ -111,7 +111,7 @@ async def filtool(input_fils, output_dir,
                   nbits=8,
                   outmean=128.,
                   outstd=6.,
-                  segment_length=1.0,
+                  segment_length=2.0,
                   zapping_threshold=4.):
     delete_files_if_exists(output_dir)
 

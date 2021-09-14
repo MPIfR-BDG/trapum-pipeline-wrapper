@@ -1,9 +1,9 @@
 import optparse
-import subprocess
+#import subprocess
 import logging
 import parseheader
 import os
-import glob
+#import glob
 import shutil
 import asyncio
 import json
@@ -12,13 +12,17 @@ from collections import namedtuple
 import mongo_wrapper
 from trapum_pipeline_wrapper import TrapumPipelineWrapper
 
-BEEOND_TEMP_DIR = "/beeond/PROCESSING/TEMP/"
-MAX_FFT_LEN = 201326592
 
-log = logging.getLogger("peasoup_search")
+BEEOND_TEMP_DIR = "/beeond/PROCESSING/TEMP/"
+#MAX_FFT_LEN = 201326592
+
+#%% Start a log for the pipeline
+log = logging.getLogger("riptide_search")
 FORMAT = "[%(levelname)s - %(asctime)s - %(filename)s:%(lineno)s] %(message)s"
 logging.basicConfig(format=FORMAT)
 log.setLevel("INFO")
+
+#%% DDplan for definition from webpage form
 
 DMRange = namedtuple(
     "DMRange",
@@ -65,6 +69,9 @@ def slices(csv):
                 step = 1
             for subvalue in np.arange(start, end, step):
                 yield subvalue
+                
+
+#%% Pipeline utils
 
 
 async def shell_call(cmd, cwd="./"):
@@ -82,7 +89,7 @@ async def shell_call(cmd, cwd="./"):
 def delete_files_if_exists(dir):
     files = os.listdir(dir)
     for file in files:
-        if file.endswith(".fil") or file.endswith(".json"):
+        if file.endswith(".inf") or file.endswith(".dat"):
             log.warning(
                 f"Removing existing file with name {os.path.join(dir, file)}")
             os.remove(os.path.join(dir, file))
@@ -94,19 +101,22 @@ def delete_file_if_exists(output_fil):
         os.remove(output_fil)
 
 
-def compare_lengths(expected, actual, tolerance=0):
-    diff = abs(expected - actual)
-    if diff > expected * tolerance:
-        log.error(f"Output file has length of {actual} "
-                  f"samples, expected {expected} samples")
-        raise Exception("Digifil output file length error")
+# =============================================================================
+# def compare_lengths(expected, actual, tolerance=0):
+#     diff = abs(expected - actual)
+#     if diff > expected * tolerance:
+#         log.error(f"Output file has length of {actual} "
+#                   f"samples, expected {expected} samples")
+#         raise Exception("Digifil output file length error")
+# =============================================================================
 
+#%% PulsarX utils
 
-async def filtool(input_fils, output_dir,
+async def dedisperse_all_fil(input_fils, output_dir,
                   rootname,
                   ddplan,
                   fscrunch,
-                  rfi_flags="zdot",
+                  rfi_flags="kadaneF 1 2 zdot",
                   num_threads=2,
                   nbits=8,
                   outmean=128.,
@@ -115,54 +125,67 @@ async def filtool(input_fils, output_dir,
                   zapping_threshold=4.):
     delete_files_if_exists(output_dir)
 
-    # generate filplan file
+# =============================================================================
+#     # generate filplan file
+# 
+#     filplan_fname = os.path.join(output_dir, "filplan.json")
+# 
+#     with open(filplan_fname, 'w') as filplan_file:
+#         plans = []
+#         for dm_range in ddplan:
+#             plans.append({"time_downsample": dm_range.tscrunch,
+#                           "frequency_downsample": 1,
+#                           "baseline_width": 0.,
+#                           "dataout_mean": outmean,
+#                           "dataout_std": outstd,
+#                           "dataout_nbits": nbits,
+#                           "rfi_flags": ""})
+#         json.dump(plans, filplan_file)
+# =============================================================================
 
-    filplan_fname = os.path.join(output_dir, "filplan.json")
 
-    with open(filplan_fname, 'w') as filplan_file:
-        plans = []
-        for dm_range in ddplan:
-            plans.append({"time_downsample": dm_range.tscrunch,
-                          "frequency_downsample": 1,
-                          "baseline_width": 0.,
-                          "dataout_mean": outmean,
-                          "dataout_std": outstd,
-                          "dataout_nbits": nbits,
-                          "rfi_flags": ""})
-        json.dump(plans, filplan_file)
 
-    cmd = f"filtool -v -t {num_threads} --zapthre {zapping_threshold} --fd {fscrunch} --filplan {filplan_fname} -l {segment_length} --baseline {0} {0} -z {rfi_flags} -o {rootname} -f {' '.join(input_fils)}"
 
-    # run transientx
+
+#%%
+
+
+    
+    cmd = f"dedisperse_all_fil -v --format presto -t {num_threads} --zapthre {zapping_threshold} --fd {fscrunch}  -l {segment_length} --ddplan {ddplan} --baseline {0} {0} -z {rfi_flags} -o {rootname} -f {' '.join(input_fils)}"
+
+
+    # run dedispersion
     try:
         await shell_call(cmd, cwd=output_dir)
     except Exception as error:
-        log.error("filtool call failed, cleaning up partial files")
+        log.error("dedisperse_all_fil call failed, cleaning up partial files")
         delete_files_if_exists(output_dir)
         raise error
+        
+
+#%% Here define config file
+
+config_file ='path_to_config_file'
 
 
-async def peasoup(input_fil, dm_list, channel_mask, birdie_list,
-                  candidate_limit, ram_limit, nharmonics, snr_threshold,
-                  start_accel, end_accel, fft_length, out_dir):
-    cmd = (f"peasoup -k {channel_mask} -z {birdie_list} "
-           f"-i {input_fil} --ram_limit_gb {ram_limit} "
-           f"--dm_file {dm_list} --limit {candidate_limit} "
-           f"-n {nharmonics}  -m {snr_threshold} --acc_start {start_accel} "
-           f"--acc_end {end_accel} --fft_size {fft_length} -o {out_dir}")
+async def riptide(config_file, input_infs, out_dir):
+    cmd = (f"rffa -k {config_file}  "
+           f"-o {out_dir} -f {out_dir}/rffa.log {input_infs}")
     await shell_call(cmd)
 
 
-def decide_fft_size(filterbank_headers):
-    nsamples = 0
-    for filterbank_header in filterbank_headers:
-        nsamples += filterbank_header['nsamples']
-    bit_length = int(nsamples).bit_length()
-    if 2**bit_length != 2 * int(nsamples):
-        return 2**bit_length
-    else:
-        return int(nsamples)
-
+# =============================================================================
+# def decide_fft_size(filterbank_headers):
+#     nsamples = 0
+#     for filterbank_header in filterbank_headers:
+#         nsamples += filterbank_header['nsamples']
+#     bit_length = int(nsamples).bit_length()
+#     if 2**bit_length != 2 * int(nsamples):
+#         return 2**bit_length
+#     else:
+#         return int(nsamples)
+# 
+# =============================================================================
 
 def get_fil_dict(input_file):
     filterbank_info = parseheader.parseSigprocHeader(input_file)
@@ -170,49 +193,53 @@ def get_fil_dict(input_file):
     return filterbank_stats
 
 
-def generate_chan_mask(chan_mask_csv, filterbank_header, outfile):
-    ftop = filterbank_header['ftop']
-    fbottom = filterbank_header['fbottom']
-    nchans = filterbank_header['nchans']
-    chan_mask = np.ones(nchans)
-    for val in chan_mask_csv.split(','):
-        if len(val.split(":")) == 1:
-            rstart = float(val)
-            rend = float(val)
-        elif len(val.split(":")) == 2:
-            rstart = float(val.split(":")[0])
-            rend = float(val.split(":")[1])
-        else:
-            log.warning("Could not understand mask entry: {}".format(val))
-            continue
-        chbw = (ftop - fbottom) / nchans
-        idx0 = int(min(max((rstart - fbottom) // chbw, 0), nchans - 1))
-        idx1 = int(max(min(int((rend - fbottom) / chbw + 0.5), nchans - 1), 0))
-        chan_mask[idx0:idx1 + 1] = 0
-    np.savetxt(outfile, chan_mask, fmt='%d')
+# =============================================================================
+# def generate_chan_mask(chan_mask_csv, filterbank_header, outfile):
+#     ftop = filterbank_header['ftop']
+#     fbottom = filterbank_header['fbottom']
+#     nchans = filterbank_header['nchans']
+#     chan_mask = np.ones(nchans)
+#     for val in chan_mask_csv.split(','):
+#         if len(val.split(":")) == 1:
+#             rstart = float(val)
+#             rend = float(val)
+#         elif len(val.split(":")) == 2:
+#             rstart = float(val.split(":")[0])
+#             rend = float(val.split(":")[1])
+#         else:
+#             log.warning("Could not understand mask entry: {}".format(val))
+#             continue
+#         chbw = (ftop - fbottom) / nchans
+#         idx0 = int(min(max((rstart - fbottom) // chbw, 0), nchans - 1))
+#         idx1 = int(max(min(int((rend - fbottom) / chbw + 0.5), nchans - 1), 0))
+#         chan_mask[idx0:idx1 + 1] = 0
+#     np.savetxt(outfile, chan_mask, fmt='%d')
+# =============================================================================
 
 
-def generate_birdie_list(birdie_csv, outfile):
-    birdies = []
-    birdies_width = []
-    for val in birdie_csv.split(','):
-        try:
-            f = val.split(":")[0]
-            w = val.split(":")[1]
-        except Exception:
-            log.warning("Could not parse birdie list entry: {}".format(val))
-            continue
-        else:
-            birdies.append(f)
-            birdies_width.append(w)
-    try:
-        np.savetxt(
-            outfile, np.c_[
-                np.array(
-                    birdies, dtype=float), np.array(
-                    birdies_width, dtype=float)], fmt="%.2f")
-    except Exception as error:
-        log.error(error)
+# =============================================================================
+# def generate_birdie_list(birdie_csv, outfile):
+#     birdies = []
+#     birdies_width = []
+#     for val in birdie_csv.split(','):
+#         try:
+#             f = val.split(":")[0]
+#             w = val.split(":")[1]
+#         except Exception:
+#             log.warning("Could not parse birdie list entry: {}".format(val))
+#             continue
+#         else:
+#             birdies.append(f)
+#             birdies_width.append(w)
+#     try:
+#         np.savetxt(
+#             outfile, np.c_[
+#                 np.array(
+#                     birdies, dtype=float), np.array(
+#                     birdies_width, dtype=float)], fmt="%.2f")
+#     except Exception as error:
+#         log.error(error)
+# =============================================================================
 
 
 def select_data_products(beam, filter_func=None):
@@ -234,7 +261,7 @@ def dmfile_from_dmrange(dm_range, outfile):
     return outfile
 
 
-async def peasoup_pipeline(data, status_callback):
+async def riptide_pipeline(data, status_callback):
     # Limit core size to avoid ephemeral-storage overflows
     # in the event of segmentation faults
     await shell_call("ulimit -c  0")
@@ -274,51 +301,57 @@ async def peasoup_pipeline(data, status_callback):
                 # First merge the filterbanks and output to processing directory
                 # this is done at whatever the native resolution of the data is
                 log.info("Executing file merge")
-                fscrunch = processing_args.get("fscrunch", 1)
                 rfi_flags = processing_args.get("rfi_flags", "zdot")
                 status_callback(
                     "Merging filterbanks and perform rfi mitigation")
 
-                await filtool(dps, processing_dir,
+                await dedisperse_all_fil(dps, processing_dir,
                               f"temp_merge_p_id_{processing_id}",
                               ddplan,
-                              fscrunch,
                               rfi_flags=rfi_flags)
 
-                filterbank_headers = [get_fil_dict(dp) for dp in dps]
+                #filterbank_headers = [get_fil_dict(dp) for dp in dps]
 
-                # Determine fft_size for Peasoup call
-                if processing_args['fft_length'] == 0:
-                    fft_size = decide_fft_size(filterbank_headers)
-                else:
-                    fft_size = processing_args['fft_length']
+# =============================================================================
+#                 # Determine fft_size for Peasoup call
+#                 if processing_args['fft_length'] == 0:
+#                     fft_size = decide_fft_size(filterbank_headers)
+#                 else:
+#                     fft_size = processing_args['fft_length']
+# =============================================================================
 
-                # Hard coded for max limit - tmp assuming 4hr, 76 us
-                # This is related to the available RAM of GTX 1080Ti GPUs
-                # and the limitations of the 32-bit implementation
-                # of the CUFFT library
-                if fft_size > MAX_FFT_LEN:
-                    fft_size = MAX_FFT_LEN
-                log.info(f"Chose base FFT length of {fft_size}")
+# =============================================================================
+#                 # Hard coded for max limit - tmp assuming 4hr, 76 us
+#                 # This is related to the available RAM of GTX 1080Ti GPUs
+#                 # and the limitations of the 32-bit implementation
+#                 # of the CUFFT library
+#                 if fft_size > MAX_FFT_LEN:
+#                     fft_size = MAX_FFT_LEN
+#                 log.info(f"Chose base FFT length of {fft_size}")
+# =============================================================================
 
-                # Determine channel mask to use
-                log.info("Determining channel mask")
-                chan_mask_csv = processing_args["channel_mask"]
-                chan_mask_file = "channel_mask.ascii"
-                generate_chan_mask(
-                    chan_mask_csv, filterbank_headers[0], chan_mask_file)
+# =============================================================================
+#                 # Determine channel mask to use
+#                 log.info("Determining channel mask")
+#                 chan_mask_csv = processing_args["channel_mask"]
+#                 chan_mask_file = "channel_mask.ascii"
+#                 generate_chan_mask(
+#                     chan_mask_csv, filterbank_headers[0], chan_mask_file)
+# 
+#                 # Determine birdie list to use
+#                 log.info("Determining birdie list")
+#                 birdie_list_csv = processing_args["birdie_list"]
+#                 birdie_list_file = "birdie_list.ascii"
+#                 generate_birdie_list(birdie_list_csv, birdie_list_file)
+# =============================================================================
 
-                # Determine birdie list to use
-                log.info("Determining birdie list")
-                birdie_list_csv = processing_args["birdie_list"]
-                birdie_list_file = "birdie_list.ascii"
-                generate_birdie_list(birdie_list_csv, birdie_list_file)
-
-                # Set RAM limit
-                ram_limit = processing_args['ram_limit']
+# =============================================================================
+#                 # Set RAM limit
+#                 ram_limit = processing_args['ram_limit']
+# =============================================================================
 
                 log.info("Instantiating downsampling manager")
-                tscrunches = [dm_range.tscrunch for dm_range in ddplan]
+                #tscrunches = [dm_range.tscrunch for dm_range in ddplan]
 
                 log.info("Starting loop over DDPlan")
                 for k, dm_range in enumerate(ddplan):
@@ -329,44 +362,39 @@ async def peasoup_pipeline(data, status_callback):
                     dm_list_file = "dm_list.ascii"
                     dmfile_from_dmrange(dm_range, dm_list_file)
 
-                    curr_fft_size = fft_size // dm_range.tscrunch
-                    peasoup_output_dir = os.path.join(
+                    #curr_fft_size = fft_size // dm_range.tscrunch
+                    riptide_output_dir = os.path.join(
                         processing_dir,
                         f"dm_range_{dm_range.low_dm:03f}_{dm_range.high_dm:03f}")
                     status_callback(
                         f"Peasoup (DM: {dm_range.low_dm} - {dm_range.high_dm})")
-                    await peasoup(
-                        search_file, dm_list_file,
-                        chan_mask_file, birdie_list_file,
-                        processing_args['candidate_limit'],
-                        processing_args['ram_limit'],
-                        int(processing_args['nharmonics']),
-                        processing_args['snr_threshold'],
-                        processing_args['start_accel'],
-                        processing_args['end_accel'],
-                        int(curr_fft_size),
-                        peasoup_output_dir)
+                    
+                    
+                    await riptide(config_file,
+                        search_file,
+                        riptide_output_dir)
 
-                    # We do not keep the candidates.peasoup files as they can be massive
-                    peasoup_candidate_file = os.path.join(
-                        peasoup_output_dir, "candidates.peasoup")
-                    os.remove(peasoup_candidate_file)
+# =============================================================================
+#                     # We do not keep the candidates.peasoup files as they can be massive
+#                     peasoup_candidate_file = os.path.join(
+#                         peasoup_output_dir, "candidates.peasoup")
+#                     os.remove(peasoup_candidate_file)
+# =============================================================================
                     os.remove(dm_list_file)
                     meta_info = dict(
-                        fftsize=curr_fft_size,
                         dmstart=dm_range.low_dm,
                         dmend=dm_range.high_dm,
                         dmstep=dm_range.dm_step,
                     )
-                    new_xml_file_name = "overview_dm_{:03f}_{:03f}.xml".format(
+                    new_csv_file_name = "overview_dm_{:03f}_{:03f}.xml".format(
                         dm_range.low_dm, dm_range.high_dm)
                     shutil.move(
-                        os.path.join(peasoup_output_dir, "overview.xml"),
-                        os.path.join(output_dir, new_xml_file_name))
-                    log.info("Transferred XML file to final location")
+                        os.path.join(riptide_output_dir, "candidates.csv"),
+                        os.path.join(output_dir, new_csv_file_name))
+                    log.info("Transferred candidate file to final location")
                     dp = dict(
-                        type="peasoup_xml",
-                        filename=new_xml_file_name,
+                        type="riptide_csv",
+                        filename=new_csv_file_name,
                         directory=data["base_output_dir"],
                         beam_id=beam["id"],
                         pointing_id=pointing["id"],
@@ -383,7 +411,7 @@ async def peasoup_pipeline(data, status_callback):
 def pipeline(data, status_callback):
     loop = asyncio.get_event_loop()
     output_dps = loop.run_until_complete(
-        peasoup_pipeline(data, status_callback))
+        riptide_pipeline(data, status_callback))
     return output_dps
 
 

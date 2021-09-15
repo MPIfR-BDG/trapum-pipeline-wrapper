@@ -144,12 +144,12 @@ async def filtool(input_fils, output_dir,
 
 async def peasoup(input_fil, dm_list, channel_mask, birdie_list,
                   candidate_limit, ram_limit, nharmonics, snr_threshold,
-                  start_accel, end_accel, fft_length, out_dir):
+                  start_accel, end_accel, fft_length, out_dir, gulp_size):
     cmd = (f"peasoup -k {channel_mask} -z {birdie_list} "
            f"-i {input_fil} --ram_limit_gb {ram_limit} "
            f"--dm_file {dm_list} --limit {candidate_limit} "
            f"-n {nharmonics}  -m {snr_threshold} --acc_start {start_accel} "
-           f"--acc_end {end_accel} --fft_size {fft_length} -o {out_dir}")
+           f"--acc_end {end_accel} --fft_size {fft_length} -o {out_dir} --dedisp_gulp {gulp_size}")
     await shell_call(cmd)
 
 
@@ -335,6 +335,9 @@ async def peasoup_pipeline(data, status_callback):
                         f"dm_range_{dm_range.low_dm:03f}_{dm_range.high_dm:03f}")
                     status_callback(
                         f"Peasoup (DM: {dm_range.low_dm} - {dm_range.high_dm})")
+
+                    default_gulpsize = (2048.0 / (filterbank_headers[0]['nchans'] / fscrunch)) * 1e6
+
                     await peasoup(
                         search_file, dm_list_file,
                         chan_mask_file, birdie_list_file,
@@ -345,7 +348,8 @@ async def peasoup_pipeline(data, status_callback):
                         processing_args['start_accel'],
                         processing_args['end_accel'],
                         int(curr_fft_size),
-                        peasoup_output_dir)
+                        peasoup_output_dir,
+                        processing_args.get('gulp_size', default_gulpsize))
 
                     # We do not keep the candidates.peasoup files as they can be massive
                     peasoup_candidate_file = os.path.join(

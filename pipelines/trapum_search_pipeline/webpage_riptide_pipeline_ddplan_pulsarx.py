@@ -71,6 +71,8 @@ def slices(csv):
                 yield subvalue
                 
 
+
+
 #%% Pipeline utils
 
 
@@ -95,97 +97,65 @@ def delete_files_if_exists(dir):
             os.remove(os.path.join(dir, file))
 
 
-def delete_file_if_exists(output_fil):
-    if os.path.isfile(output_fil):
-        log.warning(f"Removing existing file with name {output_fil}")
-        os.remove(output_fil)
-
-
-# =============================================================================
-# def compare_lengths(expected, actual, tolerance=0):
-#     diff = abs(expected - actual)
-#     if diff > expected * tolerance:
-#         log.error(f"Output file has length of {actual} "
-#                   f"samples, expected {expected} samples")
-#         raise Exception("Digifil output file length error")
-# =============================================================================
 
 #%% PulsarX utils
 
-async def dedisperse_all_fil(input_fils, output_dir,
+async def dedisperse_all_fil(input_fils, processing_dir,
                   rootname,
-                  ddplan,
-                  fscrunch,
+                  ddplan_args,
+                  beam_tag,
+                  tscrunch=1,
+                  fscrunch=1,
+                  incoherent=False,
                   rfi_flags="kadaneF 1 2 zdot",
                   num_threads=2,
                   nbits=8,
-                  outmean=128.,
-                  outstd=6.,
                   segment_length=2.0,
                   zapping_threshold=4.):
-    delete_files_if_exists(output_dir)
+    delete_files_if_exists(processing_dir)
 
-# =============================================================================
-#     # generate filplan file
-# 
-#     filplan_fname = os.path.join(output_dir, "filplan.json")
-# 
-#     with open(filplan_fname, 'w') as filplan_file:
-#         plans = []
-#         for dm_range in ddplan:
-#             plans.append({"time_downsample": dm_range.tscrunch,
-#                           "frequency_downsample": 1,
-#                           "baseline_width": 0.,
-#                           "dataout_mean": outmean,
-#                           "dataout_std": outstd,
-#                           "dataout_nbits": nbits,
-#                           "rfi_flags": ""})
-#         json.dump(plans, filplan_file)
-# =============================================================================
+    # generate ddplan file
+    try:
+        log.info("Parsing DDPlan")
+        ddplan = DDPlan.from_string(ddplan_args)
+    except Exception as error:
+        log.exception("Unable to parse DDPlan")
+        raise error
 
 
+    ddplan_fname = os.path.join(processing_dir, "ddplan.txt")
 
+    with open(ddplan_fname, 'w') as ddplan_file:
+        for dm_range in ddplan:
+            segment = f"{dm_range.tscrunch} 1 {dm_range.low_dm} {dm_range.dm_step} {np.int(np.ceil((dm_range.high_dm-dm_range.low_dm)/dm_range.dm_step))} \n"
+            ddplan_file.write(segment)
 
 
 #%%
-
-
     
-    cmd = f"dedisperse_all_fil -v --format presto -t {num_threads} --zapthre {zapping_threshold} --fd {fscrunch}  -l {segment_length} --ddplan {ddplan} --baseline {0} {0} -z {rfi_flags} -o {rootname} -f {' '.join(input_fils)}"
+    cmd = f"dedisperse_all_fil --verbose --format presto --nbits {nbits} --threads {num_threads} --zapthre {zapping_threshold} --fd {fscrunch} --td {tscrunch} -l {segment_length} --ddplan {ddplan_file} --baseline {0} {0} --rfi {rfi_flags} --rootname {rootname} {beam_tag} -f {' '.join(input_fils)}"
 
 
     # run dedispersion
     try:
-        await shell_call(cmd, cwd=output_dir)
+        await shell_call(cmd, cwd=processing_dir)
     except Exception as error:
         log.error("dedisperse_all_fil call failed, cleaning up partial files")
-        delete_files_if_exists(output_dir)
+        delete_files_if_exists(processing_dir)
         raise error
         
 
-#%% Here define config file
+#%% riptide utils
 
 config_file ='path_to_config_file'
 
 
-async def riptide(config_file, input_infs, out_dir):
+async def riptide(config_file, input_infs, rootname, output_dir):
     cmd = (f"rffa -k {config_file}  "
-           f"-o {out_dir} -f {out_dir}/rffa.log {input_infs}")
-    await shell_call(cmd)
+           f"-o {rootname} {input_infs}")
+    await shell_call(cmd, cwd=output_dir)
 
 
-# =============================================================================
-# def decide_fft_size(filterbank_headers):
-#     nsamples = 0
-#     for filterbank_header in filterbank_headers:
-#         nsamples += filterbank_header['nsamples']
-#     bit_length = int(nsamples).bit_length()
-#     if 2**bit_length != 2 * int(nsamples):
-#         return 2**bit_length
-#     else:
-#         return int(nsamples)
-# 
-# =============================================================================
 
 def get_fil_dict(input_file):
     filterbank_info = parseheader.parseSigprocHeader(input_file)
@@ -193,53 +163,6 @@ def get_fil_dict(input_file):
     return filterbank_stats
 
 
-# =============================================================================
-# def generate_chan_mask(chan_mask_csv, filterbank_header, outfile):
-#     ftop = filterbank_header['ftop']
-#     fbottom = filterbank_header['fbottom']
-#     nchans = filterbank_header['nchans']
-#     chan_mask = np.ones(nchans)
-#     for val in chan_mask_csv.split(','):
-#         if len(val.split(":")) == 1:
-#             rstart = float(val)
-#             rend = float(val)
-#         elif len(val.split(":")) == 2:
-#             rstart = float(val.split(":")[0])
-#             rend = float(val.split(":")[1])
-#         else:
-#             log.warning("Could not understand mask entry: {}".format(val))
-#             continue
-#         chbw = (ftop - fbottom) / nchans
-#         idx0 = int(min(max((rstart - fbottom) // chbw, 0), nchans - 1))
-#         idx1 = int(max(min(int((rend - fbottom) / chbw + 0.5), nchans - 1), 0))
-#         chan_mask[idx0:idx1 + 1] = 0
-#     np.savetxt(outfile, chan_mask, fmt='%d')
-# =============================================================================
-
-
-# =============================================================================
-# def generate_birdie_list(birdie_csv, outfile):
-#     birdies = []
-#     birdies_width = []
-#     for val in birdie_csv.split(','):
-#         try:
-#             f = val.split(":")[0]
-#             w = val.split(":")[1]
-#         except Exception:
-#             log.warning("Could not parse birdie list entry: {}".format(val))
-#             continue
-#         else:
-#             birdies.append(f)
-#             birdies_width.append(w)
-#     try:
-#         np.savetxt(
-#             outfile, np.c_[
-#                 np.array(
-#                     birdies, dtype=float), np.array(
-#                     birdies_width, dtype=float)], fmt="%.2f")
-#     except Exception as error:
-#         log.error(error)
-# =============================================================================
 
 
 def select_data_products(beam, filter_func=None):
@@ -260,6 +183,8 @@ def dmfile_from_dmrange(dm_range, outfile):
     np.savetxt(outfile, dm_list, fmt='%.3f')
     return outfile
 
+#%% Pipeline
+
 
 async def riptide_pipeline(data, status_callback):
     # Limit core size to avoid ephemeral-storage overflows
@@ -272,107 +197,54 @@ async def riptide_pipeline(data, status_callback):
 
     log.info(f"Creating output directory: {output_dir}")
     os.makedirs(output_dir, exist_ok=True)
-
     output_dps = []
 
-    try:
-        log.info("Parsing DDPlan")
-        ddplan = DDPlan.from_string(processing_args["ddplan"])
-    except Exception as error:
-        log.exception("Unable to parse DDPlan")
-        raise error
+
 
     for pointing in data["data"]["pointings"]:
         for beam in pointing["beams"]:
-
+            
             dps = sorted(select_data_products(
                 beam, lambda fname: fname.endswith(".fil")))
 
             if processing_args["temp_filesystem"] == "/beeond/":
                 log.info("Running on Beeond")
-                processing_dir = os.path.join(
-                    BEEOND_TEMP_DIR, str(processing_id))
+                processing_dir = os.path.join(BEEOND_TEMP_DIR, str(processing_id))
             else:
                 log.info("Running on BeeGFS")
                 processing_dir = os.path.join(output_dir, "processing/")
             os.makedirs(processing_dir, exist_ok=True)
             try:
+                # First dedisperse the filterbanks and output to processing directory
+                log.info("Executing dedispersion and rfi cleaning")
+                rfi_flags = processing_args.get("rfi_flags", "kadaneF 1 2 zdot")
+                ddplan_args = processing_args["ddplan"]
 
-                # First merge the filterbanks and output to processing directory
-                # this is done at whatever the native resolution of the data is
-                log.info("Executing file merge")
-                rfi_flags = processing_args.get("rfi_flags", "zdot")
+                beam_name = beam["name"]
+                if 'ifbf' in beam_name:
+                    beam_tag = "--incoherent"
+                elif 'cfbf' in beam_name:
+                    beam_tag = "--ibeam {}".format(int(beam_name.strip("cfbf")))
+                else:
+                    log.warning(
+                        "Invalid beam name. Folding with default beam name")
+                    beam_tag = ""
+                    
                 status_callback(
-                    "Merging filterbanks and perform rfi mitigation")
-
+                    "Dedispersing filterbanks and performing RFI mitigation")
                 await dedisperse_all_fil(dps, processing_dir,
-                              f"temp_merge_p_id_{processing_id}",
-                              ddplan,
-                              rfi_flags=rfi_flags)
+                               f"dedispersed_{processing_id}_",
+                              ddplan_args, beam_tag,
+                              rfi_flags)
+                
+            
 
-                #filterbank_headers = [get_fil_dict(dp) for dp in dps]
 
-# =============================================================================
-#                 # Determine fft_size for Peasoup call
-#                 if processing_args['fft_length'] == 0:
-#                     fft_size = decide_fft_size(filterbank_headers)
-#                 else:
-#                     fft_size = processing_args['fft_length']
-# =============================================================================
-
-# =============================================================================
-#                 # Hard coded for max limit - tmp assuming 4hr, 76 us
-#                 # This is related to the available RAM of GTX 1080Ti GPUs
-#                 # and the limitations of the 32-bit implementation
-#                 # of the CUFFT library
-#                 if fft_size > MAX_FFT_LEN:
-#                     fft_size = MAX_FFT_LEN
-#                 log.info(f"Chose base FFT length of {fft_size}")
-# =============================================================================
-
-# =============================================================================
-#                 # Determine channel mask to use
-#                 log.info("Determining channel mask")
-#                 chan_mask_csv = processing_args["channel_mask"]
-#                 chan_mask_file = "channel_mask.ascii"
-#                 generate_chan_mask(
-#                     chan_mask_csv, filterbank_headers[0], chan_mask_file)
-# 
-#                 # Determine birdie list to use
-#                 log.info("Determining birdie list")
-#                 birdie_list_csv = processing_args["birdie_list"]
-#                 birdie_list_file = "birdie_list.ascii"
-#                 generate_birdie_list(birdie_list_csv, birdie_list_file)
-# =============================================================================
-
-# =============================================================================
-#                 # Set RAM limit
-#                 ram_limit = processing_args['ram_limit']
-# =============================================================================
-
-                log.info("Instantiating downsampling manager")
-                #tscrunches = [dm_range.tscrunch for dm_range in ddplan]
-
-                log.info("Starting loop over DDPlan")
-                for k, dm_range in enumerate(ddplan):
-                    log.info(f"Processing DM range: {dm_range}")
-                    search_file = os.path.join(
-                        processing_dir, f"temp_merge_p_id_{processing_id}_{k+1:02d}.fil")
-                    log.info(f"Searching file: {search_file}")
-                    dm_list_file = "dm_list.ascii"
-                    dmfile_from_dmrange(dm_range, dm_list_file)
-
-                    #curr_fft_size = fft_size // dm_range.tscrunch
-                    riptide_output_dir = os.path.join(
-                        processing_dir,
-                        f"dm_range_{dm_range.low_dm:03f}_{dm_range.high_dm:03f}")
-                    status_callback(
-                        f"Peasoup (DM: {dm_range.low_dm} - {dm_range.high_dm})")
                     
-                    
-                    await riptide(config_file,
-                        search_file,
-                        riptide_output_dir)
+                status_callback("Riptide search")
+                await riptide(config_file,
+                    dps,
+                    f"riptide_{processing_id}_", output_dir)
 
 # =============================================================================
 #                     # We do not keep the candidates.peasoup files as they can be massive
@@ -380,31 +252,21 @@ async def riptide_pipeline(data, status_callback):
 #                         peasoup_output_dir, "candidates.peasoup")
 #                     os.remove(peasoup_candidate_file)
 # =============================================================================
-                    os.remove(dm_list_file)
-                    meta_info = dict(
-                        dmstart=dm_range.low_dm,
-                        dmend=dm_range.high_dm,
-                        dmstep=dm_range.dm_step,
-                    )
-                    new_csv_file_name = "overview_dm_{:03f}_{:03f}.xml".format(
-                        dm_range.low_dm, dm_range.high_dm)
-                    shutil.move(
-                        os.path.join(riptide_output_dir, "candidates.csv"),
-                        os.path.join(output_dir, new_csv_file_name))
-                    log.info("Transferred candidate file to final location")
-                    dp = dict(
-                        type="riptide_csv",
-                        filename=new_csv_file_name,
-                        directory=data["base_output_dir"],
-                        beam_id=beam["id"],
-                        pointing_id=pointing["id"],
-                        metainfo=json.dumps(meta_info)
-                    )
-                    output_dps.append(dp)
+
+
+                dp = dict(
+                    type="riptide_csv",
+                    filename=os.path.join(output_dir, "candidates.csv"),
+                    directory=data["base_output_dir"],
+                    beam_id=beam["id"],
+                    pointing_id=pointing["id"],
+                    metainfo=json.dumps({"rfi_flags":rfi_flags, "ddplan_args":ddplan_args})
+                )
+                output_dps.append(dp)
             except Exception as error:
                 raise error
             finally:
-                shutil.rmtree(processing_dir)
+                shutil.rmtree(processing_dir) #delete dedispersed files
     return output_dps
 
 
@@ -414,6 +276,8 @@ def pipeline(data, status_callback):
         riptide_pipeline(data, status_callback))
     return output_dps
 
+
+#%% Run the pipeline
 
 if __name__ == '__main__':
     parser = optparse.OptionParser()

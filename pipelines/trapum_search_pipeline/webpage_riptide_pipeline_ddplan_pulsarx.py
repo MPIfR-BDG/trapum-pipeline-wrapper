@@ -96,7 +96,6 @@ async def dedisperse_all_fil(input_fils, processing_dir,
                   incoherent=False,
                   rfi_flags="kadaneF 1 2 zdot",
                   num_threads=2,
-                  nbits=8,
                   segment_length=2.0,
                   zapping_threshold=4.):
     delete_files_if_exists(processing_dir)
@@ -130,7 +129,7 @@ async def dedisperse_all_fil(input_fils, processing_dir,
     
     ddplan_file.close()
     
-    cmd = f"dedisperse_all_fil --verbose --format presto --nbits {nbits} --threads {num_threads} --zapthre {zapping_threshold} --fd {fscrunch} --td {tscrunch} -l {segment_length} --ddplan {ddplan_file} --baseline {0} {0} --rfi {rfi_flags} --rootname {rootname} {beam_tag} -f {' '.join(input_fils)}"
+    cmd = f"dedisperse_all_fil --verbose --format presto --threads {num_threads} --zapthre {zapping_threshold} --fd {fscrunch} --td {tscrunch} -l {segment_length} --ddplan {ddplan_file} --baseline {0} {0} --rfi {rfi_flags} --rootname {rootname} {beam_tag} -f {' '.join(input_fils)}"
 
     #Run dedispersion
     try:

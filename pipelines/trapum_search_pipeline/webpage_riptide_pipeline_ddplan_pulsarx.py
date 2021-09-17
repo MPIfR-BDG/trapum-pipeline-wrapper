@@ -1,9 +1,6 @@
 import optparse
-#import subprocess
 import logging
-import parseheader
 import os
-#import glob
 import shutil
 import asyncio
 import json
@@ -11,12 +8,12 @@ import numpy as np
 from collections import namedtuple
 import mongo_wrapper
 from trapum_pipeline_wrapper import TrapumPipelineWrapper
-
+import tarfile
 
 BEEOND_TEMP_DIR = "/beeond/PROCESSING/TEMP/"
-#MAX_FFT_LEN = 201326592
 
 #%% Start a log for the pipeline
+
 log = logging.getLogger("riptide_search")
 FORMAT = "[%(levelname)s - %(asctime)s - %(filename)s:%(lineno)s] %(message)s"
 logging.basicConfig(format=FORMAT)
@@ -27,7 +24,6 @@ log.setLevel("INFO")
 DMRange = namedtuple(
     "DMRange",
     ["low_dm", "high_dm", "dm_step", "tscrunch"])
-
 
 class DDPlan(object):
     def __init__(self):
@@ -54,27 +50,7 @@ class DDPlan(object):
             inst.add_range(low_dm, high_dm, dm_step, int(tscrunch))
         return inst
 
-
-def slices(csv):
-    for value in csv.split(","):
-        if ":" not in value:
-            yield float(value)
-        else:
-            x = value.split(":")
-            start = float(x[0])
-            end = float(x[1])
-            if len(x) > 2:
-                step = float(x[2])
-            else:
-                step = 1
-            for subvalue in np.arange(start, end, step):
-                yield subvalue
-                
-
-
-
-#%% Pipeline utils
-
+#%% Pipeline utils definitions
 
 async def shell_call(cmd, cwd="./"):
     log.info(f"Shell call: {cmd}")
@@ -87,83 +63,17 @@ async def shell_call(cmd, cwd="./"):
     if retcode != 0:
         raise Exception(f"Process return-code {retcode}")
 
-
 def delete_files_if_exists(dir):
     files = os.listdir(dir)
     for file in files:
-        if file.endswith(".inf") or file.endswith(".dat"):
+        if file.endswith(".inf") or file.endswith(".dat") or file.endswith(".csv") or file.endswith(".json") or file.endswith(".png") or file.endswith(".log") or file.endswith(".yaml"):
             log.warning(
                 f"Removing existing file with name {os.path.join(dir, file)}")
             os.remove(os.path.join(dir, file))
-
-
-
-#%% PulsarX utils
-
-async def dedisperse_all_fil(input_fils, processing_dir,
-                  rootname,
-                  ddplan_args,
-                  beam_tag,
-                  tscrunch=1,
-                  fscrunch=1,
-                  incoherent=False,
-                  rfi_flags="kadaneF 1 2 zdot",
-                  num_threads=2,
-                  nbits=8,
-                  segment_length=2.0,
-                  zapping_threshold=4.):
-    delete_files_if_exists(processing_dir)
-
-    # generate ddplan file
-    try:
-        log.info("Parsing DDPlan")
-        ddplan = DDPlan.from_string(ddplan_args)
-    except Exception as error:
-        log.exception("Unable to parse DDPlan")
-        raise error
-
-
-    ddplan_fname = os.path.join(processing_dir, "ddplan.txt")
-
-    with open(ddplan_fname, 'w') as ddplan_file:
-        for dm_range in ddplan:
-            segment = f"{dm_range.tscrunch} 1 {dm_range.low_dm} {dm_range.dm_step} {np.int(np.ceil((dm_range.high_dm-dm_range.low_dm)/dm_range.dm_step))} \n"
-            ddplan_file.write(segment)
-
-
-#%%
-    
-    cmd = f"dedisperse_all_fil --verbose --format presto --nbits {nbits} --threads {num_threads} --zapthre {zapping_threshold} --fd {fscrunch} --td {tscrunch} -l {segment_length} --ddplan {ddplan_file} --baseline {0} {0} --rfi {rfi_flags} --rootname {rootname} {beam_tag} -f {' '.join(input_fils)}"
-
-
-    # run dedispersion
-    try:
-        await shell_call(cmd, cwd=processing_dir)
-    except Exception as error:
-        log.error("dedisperse_all_fil call failed, cleaning up partial files")
-        delete_files_if_exists(processing_dir)
-        raise error
-        
-
-#%% riptide utils
-
-config_file ='path_to_config_file'
-
-
-async def riptide(config_file, input_infs, rootname, output_dir):
-    cmd = (f"rffa -k {config_file}  "
-           f"-o {rootname} {input_infs}")
-    await shell_call(cmd, cwd=output_dir)
-
-
-
-def get_fil_dict(input_file):
-    filterbank_info = parseheader.parseSigprocHeader(input_file)
-    filterbank_stats = parseheader.updateHeader(filterbank_info)
-    return filterbank_stats
-
-
-
+            
+def make_tarfile(output_path, input_path, name):
+    with tarfile.open(output_path + '/' + name, "w:gz") as tar:
+        tar.add(input_path, arcname=name)
 
 def select_data_products(beam, filter_func=None):
     dp_list = []
@@ -175,34 +85,103 @@ def select_data_products(beam, filter_func=None):
             dp_list.append(dp["filename"])
     return dp_list
 
+#%% PulsarX and riptide definitions
 
-def dmfile_from_dmrange(dm_range, outfile):
-    # Generate actual dm list file
-    dm_csv = f"{dm_range.low_dm}:{dm_range.high_dm}:{dm_range.dm_step}"
-    dm_list = sorted(list(set(list(slices(dm_csv)))))
-    np.savetxt(outfile, dm_list, fmt='%.3f')
-    return outfile
+async def dedisperse_all_fil(input_fils, processing_dir,
+                  rootname,
+                  ddplan_args,
+                  beam_name,
+                  tscrunch=1,
+                  fscrunch=1,
+                  incoherent=False,
+                  rfi_flags="kadaneF 1 2 zdot",
+                  num_threads=2,
+                  nbits=8,
+                  segment_length=2.0,
+                  zapping_threshold=4.):
+    delete_files_if_exists(processing_dir)
+    
+    #Get beam tag
+    if 'ifbf' in beam_name:
+        beam_tag = "--incoherent"
+        log.info("Incoherent beam")
+    elif 'cfbf' in beam_name:
+        beam_tag = "--ibeam {}".format(int(beam_name.strip("cfbf")))
+        log.info("Beam number "+beam_tag)
+    else:
+        log.warning(
+            "Invalid beam name. Folding with default beam name")
+        beam_tag = ""
+    
+    #Generate ddplan file
+    try:
+        log.info("Parsing DDPlan")
+        ddplan = DDPlan.from_string(ddplan_args)
+    except Exception as error:
+        log.exception("Unable to parse DDPlan")
+        raise error
+
+    ddplan_fname = os.path.join(processing_dir, "ddplan.txt")
+
+    with open(ddplan_fname, 'w') as ddplan_file:
+        for dm_range in ddplan:
+            segment = f"{dm_range.tscrunch} 1 {dm_range.low_dm} {dm_range.dm_step} {np.int(np.ceil((dm_range.high_dm-dm_range.low_dm)/dm_range.dm_step))} \n"
+            ddplan_file.write(segment)
+    
+    ddplan_file.close()
+    
+    cmd = f"dedisperse_all_fil --verbose --format presto --nbits {nbits} --threads {num_threads} --zapthre {zapping_threshold} --fd {fscrunch} --td {tscrunch} -l {segment_length} --ddplan {ddplan_file} --baseline {0} {0} --rfi {rfi_flags} --rootname {rootname} {beam_tag} -f {' '.join(input_fils)}"
+
+    #Run dedispersion
+    try:
+        await shell_call(cmd, cwd=processing_dir)
+    except Exception as error:
+        log.error("dedisperse_all_fil call failed, cleaning up partial files")
+        delete_files_if_exists(processing_dir)
+        raise error
+
+async def riptide(config_file, rootname, processing_dir):
+    
+    #Generate riptide config file
+    log.info("Generating riptide config file")
+    config_file_path = processing_dir+'config.yaml'
+    config_file_handle = open(config_file_path, 'w')
+    config_file_handle.write(config_file)
+    config_file_handle.close()
+    
+    cmd = (f"rffa -k {config_file_path}  "
+           f"-o {rootname} *.inf")
+    
+    try:
+        await shell_call(cmd, cwd=processing_dir)
+    except Exception as error:
+        log.error("riptide call failed, cleaning up partial files")
+        delete_files_if_exists(processing_dir)
+        raise error
 
 #%% Pipeline
-
 
 async def riptide_pipeline(data, status_callback):
     # Limit core size to avoid ephemeral-storage overflows
     # in the event of segmentation faults
     await shell_call("ulimit -c  0")
 
+    #Get processing args
     processing_args = data["processing_args"]
     output_dir = data["base_output_dir"]
     processing_id = data["processing_id"]
+    config_file = processing_args["config_file"]
+    rfi_flags = processing_args["rfi_flags"]
+    ddplan_args = processing_args["ddplan"]
 
     log.info(f"Creating output directory: {output_dir}")
     os.makedirs(output_dir, exist_ok=True)
     output_dps = []
 
-
-
     for pointing in data["data"]["pointings"]:
         for beam in pointing["beams"]:
+            
+            beam_name = beam["name"]
             
             dps = sorted(select_data_products(
                 beam, lambda fname: fname.endswith(".fil")))
@@ -214,59 +193,51 @@ async def riptide_pipeline(data, status_callback):
                 log.info("Running on BeeGFS")
                 processing_dir = os.path.join(output_dir, "processing/")
             os.makedirs(processing_dir, exist_ok=True)
+            
             try:
-                # First dedisperse the filterbanks and output to processing directory
-                log.info("Executing dedispersion and rfi cleaning")
-                rfi_flags = processing_args.get("rfi_flags", "kadaneF 1 2 zdot")
-                ddplan_args = processing_args["ddplan"]
-
-                beam_name = beam["name"]
-                if 'ifbf' in beam_name:
-                    beam_tag = "--incoherent"
-                elif 'cfbf' in beam_name:
-                    beam_tag = "--ibeam {}".format(int(beam_name.strip("cfbf")))
-                else:
-                    log.warning(
-                        "Invalid beam name. Folding with default beam name")
-                    beam_tag = ""
-                    
+                #Dedisperse the filterbanks and output to temporary processing directory
+                log.info(
+                    "Dedispersing filterbanks and performing RFI mitigation")
                 status_callback(
                     "Dedispersing filterbanks and performing RFI mitigation")
                 await dedisperse_all_fil(dps, processing_dir,
                                f"dedispersed_{processing_id}_",
-                              ddplan_args, beam_tag,
+                              ddplan_args, beam_name,
                               rfi_flags)
                 
-            
-
-
-                    
+                #Run riptide in the temporary processing directory
+                log.info("Riptide search")
                 status_callback("Riptide search")
                 await riptide(config_file,
-                    dps,
-                    f"riptide_{processing_id}_", output_dir)
+                    f"riptide_{processing_id}_", processing_dir)
+                
+                #Remove unnecessary riptide files
+                log.info("Removing unnecessary riptide files")
+                os.remove(processing_dir+'/*.json')
+                os.remove(processing_dir+'/peaks.csv')
+                os.remove(processing_dir+'/*.png') #if riptide plotting has been left on by accident
 
-# =============================================================================
-#                     # We do not keep the candidates.peasoup files as they can be massive
-#                     peasoup_candidate_file = os.path.join(
-#                         peasoup_output_dir, "candidates.peasoup")
-#                     os.remove(peasoup_candidate_file)
-# =============================================================================
-
-
+                #Tar up the csv riptide output files
+                log.info("Tarring up riptide csvs")
+                tar_name = os.path.basename(output_dir) + "_csv_files.tar.gz"
+                make_tarfile(output_dir, processing_dir, tar_name)
+                log.info("Tarred.")
+         
+                #Create data product
                 dp = dict(
-                    type="riptide_csv",
-                    filename=os.path.join(output_dir, "candidates.csv"),
+                    type="riptide_candidate_tar_file",
+                    filename=tar_name,
                     directory=data["base_output_dir"],
                     beam_id=beam["id"],
                     pointing_id=pointing["id"],
                     metainfo=json.dumps({"rfi_flags":rfi_flags, "ddplan_args":ddplan_args})
                 )
                 output_dps.append(dp)
+
             except Exception as error:
                 raise error
             finally:
-                shutil.rmtree(processing_dir) #delete dedispersed files
+                shutil.rmtree(processing_dir) #delete dedispersed files and riptide files that are not tarred
     return output_dps
 
 

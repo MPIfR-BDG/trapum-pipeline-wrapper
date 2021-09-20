@@ -4,6 +4,7 @@ import os
 import shutil
 import asyncio
 import json
+import glob
 import numpy as np
 from collections import namedtuple
 import mongo_wrapper
@@ -212,9 +213,13 @@ async def riptide_pipeline(data, status_callback):
                 
                 #Remove unnecessary riptide files
                 log.info("Removing unnecessary riptide files")
-                os.remove(processing_dir+'/*.json')
+                files_to_remove = []
+                files_to_remove.extend(glob.glob(processing_dir+'/*.json')) #candidate files
+                files_to_remove.extend(glob.glob(processing_dir+'/*.png')) #if riptide plotting has been left on by accident
+                for file_to_remove in files_to_remove:
+                    os.remove(file_to_remove)
                 os.remove(processing_dir+'/peaks.csv')
-                os.remove(processing_dir+'/*.png') #if riptide plotting has been left on by accident
+
 
                 #Tar up the csv riptide output files
                 log.info("Tarring up riptide csvs")

@@ -49,7 +49,8 @@ class DDPlan(object):
     def from_string(cls, plan):
         inst = cls()
         for line in plan.splitlines():
-            low_dm, high_dm, dm_step, tscrunch = list(map(float, line.split()[:4]))
+            low_dm, high_dm, dm_step, tscrunch = list(
+                map(float, line.split()[:4]))
             inst.add_range(low_dm, high_dm, dm_step, int(tscrunch))
         return inst
 
@@ -65,11 +66,13 @@ async def shell_call(cmd, cwd="./"):
     if retcode != 0:
         raise Exception(f"Process return-code {retcode}")
 
+
 def delete_files_if_exists(dir):
     files = os.listdir(dir)
     for file in files:
         if file.endswith(".cands") or file.endswith(".png") or file.endswith(".txt"):
-            log.warning(f"Removing existing file with name {os.path.join(dir, file)}")
+            log.warning(
+                f"Removing existing file with name {os.path.join(dir, file)}")
             os.remove(os.path.join(dir, file))
 
 
@@ -79,17 +82,18 @@ async def transientx(input_fils, output_dir,
                      snr_threshold,
                      max_search_width,
                      rfi_flags,
-                     rootname = "J0000-00",
-                     num_threads = 12,
-                     zapping_threshold = 3.0,
-                     snrloss = 0.1,
-                     segment_length = 1.0,
-                     overlap = 0.1,
-                     dbscan_radius = 1.,
-                     dbscan_k = 2,
-                     minimum_points_limit = 5,
-                     baseline_pre = 0.0,
-                     baseline_post = 0.1,
+                     beam_tag,
+                     rootname="J0000-00",
+                     num_threads=12,
+                     zapping_threshold=3.0,
+                     snrloss=0.1,
+                     segment_length=1.0,
+                     overlap=0.1,
+                     dbscan_radius=1.,
+                     dbscan_k=2,
+                     minimum_points_limit=5,
+                     baseline_pre=0.0,
+                     baseline_post=0.1,
                      drop_cands_with_maxwidth=False):
     delete_files_if_exists(output_dir)
 
@@ -111,7 +115,7 @@ async def transientx(input_fils, output_dir,
     drop_flag = ""
     if drop_cands_with_maxwidth:
         drop_flag = "--drop"
-    cmd = f"transientx_fil -v -o {rootname} -t {num_threads} --zapthre {zapping_threshold} --fd {fscrunch} --overlap {overlap} --ddplan {ddplan_fname} --thre {snr_threshold} --maxw {max_search_width} --snrloss {snrloss} -l {segment_length} -r {dbscan_radius} -k {dbscan_k} --minpts {minimum_points_limit} --baseline {baseline_pre} {baseline_post} {drop_flag} -z {rfi_flags} -f {' '.join(input_fils)}"
+    cmd = f"transientx_fil -v -o {rootname} -t {num_threads} --zapthre {zapping_threshold} --fd {fscrunch} --overlap {overlap} --ddplan {ddplan_fname} --thre {snr_threshold} --maxw {max_search_width} --snrloss {snrloss} -l {segment_length} -r {dbscan_radius} -k {dbscan_k} --minpts {minimum_points_limit} --baseline {baseline_pre} {baseline_post} {drop_flag} {beam_tag} -z {rfi_flags} -f {' '.join(input_fils)}"
 
     # run transientx
     try:
@@ -151,12 +155,14 @@ async def transientx_pipeline(data, status_callback):
         for beam in pointing["beams"]:
 
             beam_ID = int(beam["id"])
+            beam_name = beam["name"]
             dps = sorted(select_data_products(
                 beam, lambda fname: fname.endswith(".fil")))
 
             if processing_args["temp_filesystem"] == "/beeond/":
                 log.info("Running on Beeond")
-                processing_dir = os.path.join(BEEOND_TEMP_DIR, str(processing_id))
+                processing_dir = os.path.join(
+                    BEEOND_TEMP_DIR, str(processing_id))
             else:
                 log.info("Running on BeeGFS")
                 processing_dir = os.path.join(output_dir, "processing/")
@@ -165,7 +171,8 @@ async def transientx_pipeline(data, status_callback):
                 log.info("Executing transient search")
                 fscrunch = processing_args.get("fscrunch", 1)
                 snr_threshold = processing_args.get("snr_threshold", 7)
-                max_search_width = processing_args.get("max_search_width", 0.05)
+                max_search_width = processing_args.get(
+                    "max_search_width", 0.05)
                 rfi_flags = processing_args.get("rfi_flags", 1)
                 ddplan_args = processing_args["ddplan"]
 
@@ -180,6 +187,14 @@ async def transientx_pipeline(data, status_callback):
                             raise Exception("Unable to parse channel mask: {}".format(
                                 str(error)))
 
+                if 'ifbf' in beam_name:
+                    beam_tag = "--incoherent"
+                elif 'cfbf' in beam_name:
+                    beam_tag = "-i {}".format(int(beam_name.strip("cfbf")))
+                else:
+                    log.warning(
+                        "Invalid beam name. Folding with default beam name")
+                    beam_tag = ""
                 status_callback("Transient search")
                 await transientx(dps, processing_dir,
                                  ddplan_args,
@@ -187,13 +202,15 @@ async def transientx_pipeline(data, status_callback):
                                  snr_threshold,
                                  max_search_width,
                                  rfi_flags,
+                                 beam_tag,
                                  "%d_%d" % (pointing["id"], beam_ID))
 
                 # count number of candidates
                 ncands = len(glob.glob(processing_dir+"/*.png"))
 
                 # Decide tar name
-                tar_name = "%d_%d_transientx_candidates.tar.gz"  %(pointing["id"], beam_ID)
+                tar_name = "%d_%d_transientx_candidates.tar.gz" % (
+                    pointing["id"], beam_ID)
 
                 # Create tar file of tmp directory in output directory
                 log.info("Tarring up all transientx output files")
@@ -207,7 +224,8 @@ async def transientx_pipeline(data, status_callback):
                     directory=output_dir,
                     beam_id=beam_ID,
                     pointing_id=pointing["id"],
-                    metainfo=json.dumps({"number_of_candidates":ncands, "fscrunch":fscrunch, "snr_threshold":snr_threshold, "rfi_flags":rfi_flags, "ddplan_args":ddplan_args})
+                    metainfo=json.dumps({"number_of_candidates": ncands, "fscrunch": fscrunch,
+                                        "snr_threshold": snr_threshold, "rfi_flags": rfi_flags, "ddplan_args": ddplan_args})
                 )
 
                 output_dps.append(dp)

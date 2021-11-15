@@ -4,7 +4,6 @@ import os
 import shutil
 import asyncio
 import json
-import glob
 import numpy as np
 from collections import namedtuple
 import mongo_wrapper
@@ -220,17 +219,8 @@ async def riptide_pipeline(data, status_callback):
                 status_callback("Riptide search")
                 await riptide(config_file,
                     f"riptide_{processing_id}_", processing_dir)
-                
-                #Remove unnecessary riptide files
-                log.info("Removing unnecessary riptide files")
-                files_to_remove = []
-                files_to_remove.extend(glob.glob(processing_dir+'/*.json')) #candidate files
-                files_to_remove.extend(glob.glob(processing_dir+'/*.png')) #if riptide plotting has been left on by accident
-                for file_to_remove in files_to_remove:
-                    os.remove(file_to_remove)
-                os.remove(processing_dir+'/peaks.csv')
-                
-                
+            
+                 
                 #Add information to the riptide csv output for the multibeam filter
                 #position of beam, observation length, sampling time
                 log.info("Adding beam info to riptide output file")
@@ -243,17 +233,15 @@ async def riptide_pipeline(data, status_callback):
                 riptide_output_handle.write(str(filterbank_header["tsamp"])+'\n')
                 riptide_output_handle.close()
 
-
-                #Tar up the csv riptide output files
-                log.info("Tarring up riptide csvs")
-                tar_name = os.path.basename(output_dir) + "_csv_files.tar.gz"
-                make_tarfile(output_dir, processing_dir, tar_name)
-                log.info("Tarred.")
-         
+                #Move the riptide csv candidate file to its final location
+                shutil.move(
+                        os.path.join(processing_dir, "candidates.csv"),
+                        os.path.join(output_dir, "candidates.csv"))
+                log.info("Transferred riptide csv candidate file to final location")
                 #Create data product
                 dp = dict(
                     type="riptide_candidate_tar_file",
-                    filename=tar_name,
+                    filename="candidates.csv",
                     directory=data["base_output_dir"],
                     beam_id=beam["id"],
                     pointing_id=pointing["id"],

@@ -10,6 +10,7 @@ from collections import namedtuple
 import mongo_wrapper
 from trapum_pipeline_wrapper import TrapumPipelineWrapper
 import tarfile
+import parseheader
 
 BEEOND_TEMP_DIR = "/beeond/PROCESSING/TEMP/"
 
@@ -64,13 +65,13 @@ async def shell_call(cmd, cwd="./"):
     if retcode != 0:
         raise Exception(f"Process return-code {retcode}")
 
-def delete_files_if_exists(dir):
-    files = os.listdir(dir)
+def delete_files_if_exists(directory):
+    files = os.listdir(directory)
     for file in files:
         if file.endswith(".inf") or file.endswith(".dat") or file.endswith(".csv") or file.endswith(".json") or file.endswith(".png") or file.endswith(".log") or file.endswith(".yaml"):
             log.warning(
-                f"Removing existing file with name {os.path.join(dir, file)}")
-            os.remove(os.path.join(dir, file))
+                f"Removing existing file with name {os.path.join(directory, file)}")
+            os.remove(os.path.join(directory, file))
             
 def make_tarfile(output_path, input_path, name):
     with tarfile.open(output_path + '/' + name, "w:gz") as tar:
@@ -78,13 +79,21 @@ def make_tarfile(output_path, input_path, name):
 
 def select_data_products(beam, filter_func=None):
     dp_list = []
-    for dp in (beam["data_products"]):
+    for dp in beam["data_products"]:
         if filter_func:
             if filter_func(dp["filename"]):
                 dp_list.append(dp["filename"])
         else:
             dp_list.append(dp["filename"])
     return dp_list
+
+def get_fil_dict(input_file):
+    filterbank_info = parseheader.parseSigprocHeader(input_file)
+    filterbank_stats = parseheader.updateHeader(filterbank_info)
+    return filterbank_stats
+
+def get_obs_length(filterbanks):
+    return sum([get_fil_dict(fname)['tobs'] for fname in filterbanks])
 
 #%% PulsarX and riptide definitions
 
@@ -94,7 +103,6 @@ async def dedisperse_all_fil(input_fils, processing_dir,
                   beam_name,
                   tscrunch=1,
                   fscrunch=1,
-                  incoherent=False,
                   rfi_flags="kadaneF 1 2 zdot",
                   num_threads=2,
                   segment_length=2.0,
@@ -183,8 +191,10 @@ async def riptide_pipeline(data, status_callback):
             
             beam_name = beam["name"]
             
-            dps = sorted(select_data_products(
+            input_fil_list = sorted(select_data_products(
                 beam, lambda fname: fname.endswith(".fil")))
+            
+            obs_length = get_obs_length(input_fil_list)
 
             if processing_args["temp_filesystem"] == "/beeond/":
                 log.info("Running on Beeond")
@@ -200,7 +210,7 @@ async def riptide_pipeline(data, status_callback):
                     "Dedispersing filterbanks and performing RFI mitigation")
                 status_callback(
                     "Dedispersing filterbanks and performing RFI mitigation")
-                await dedisperse_all_fil(dps, processing_dir,
+                await dedisperse_all_fil(input_fil_list, processing_dir,
                                f"dedispersed_{processing_id}_",
                               ddplan_args, beam_name,
                               rfi_flags)
@@ -219,6 +229,19 @@ async def riptide_pipeline(data, status_callback):
                 for file_to_remove in files_to_remove:
                     os.remove(file_to_remove)
                 os.remove(processing_dir+'/peaks.csv')
+                
+                
+                #Add information to the riptide csv output for the multibeam filter
+                #position of beam, observation length, sampling time
+                log.info("Adding beam info to riptide output file")
+                riptide_output_path = processing_dir+'candidates.csv'
+                riptide_output_handle = open(riptide_output_path, 'a') #append mode
+                filterbank_header = get_fil_dict(beam)
+                riptide_output_handle.write(str(filterbank_header["ra"])+'\n')
+                riptide_output_handle.write(str(filterbank_header["dec"])+'\n')
+                riptide_output_handle.write(str(obs_length)+'\n')
+                riptide_output_handle.write(str(filterbank_header["tsamp"])+'\n')
+                riptide_output_handle.close()
 
 
                 #Tar up the csv riptide output files

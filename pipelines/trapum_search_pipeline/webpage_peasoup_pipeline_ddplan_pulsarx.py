@@ -308,14 +308,14 @@ async def peasoup_pipeline(data, status_callback):
                 # Determine channel mask to use
                 log.info("Determining channel mask")
                 chan_mask_csv = processing_args["channel_mask"]
-                chan_mask_file = "channel_mask.ascii"
+                chan_mask_file = os.path.join(processing_dir, "channel_mask.ascii")
                 generate_chan_mask(
                     chan_mask_csv, filterbank_headers[0], chan_mask_file)
 
                 # Determine birdie list to use
                 log.info("Determining birdie list")
                 birdie_list_csv = processing_args["birdie_list"]
-                birdie_list_file = "birdie_list.ascii"
+                birdie_list_file = os.path.join(processing_dir, "birdie_list.ascii")
                 generate_birdie_list(birdie_list_csv, birdie_list_file)
 
                 # Set RAM limit

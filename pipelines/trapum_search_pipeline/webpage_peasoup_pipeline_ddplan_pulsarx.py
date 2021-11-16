@@ -245,6 +245,9 @@ async def peasoup_pipeline(data, status_callback):
 
     log.info(f"Creating output directory: {output_dir}")
     os.makedirs(output_dir, exist_ok=True)
+    logfile = os.path.join(output_dir, "pipeline.log")
+    fh = logging.FileHandler(logfile)
+    log.addHandler(fh)
 
     output_dps = []
 
@@ -381,6 +384,8 @@ async def peasoup_pipeline(data, status_callback):
                 raise error
             finally:
                 shutil.rmtree(processing_dir)
+    log.removeHandler(fh)
+    os.remove(logfile)
     return output_dps
 
 

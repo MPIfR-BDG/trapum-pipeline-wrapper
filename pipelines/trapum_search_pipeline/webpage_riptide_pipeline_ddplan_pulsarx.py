@@ -227,10 +227,10 @@ async def riptide_pipeline(data, status_callback):
                 riptide_output_path = processing_dir+'candidates.csv'
                 riptide_output_handle = open(riptide_output_path, 'a') #append mode
                 filterbank_header = get_fil_dict(beam)
-                riptide_output_handle.write(str(filterbank_header["ra"])+'\n')
-                riptide_output_handle.write(str(filterbank_header["dec"])+'\n')
-                riptide_output_handle.write(str(obs_length)+'\n')
-                riptide_output_handle.write(str(filterbank_header["tsamp"])+'\n')
+                riptide_output_handle.write(str(filterbank_header["src_raj"])+',')
+                riptide_output_handle.write(str(filterbank_header["src_decj"])+',')
+                riptide_output_handle.write(str(obs_length)+',')
+                riptide_output_handle.write(str(filterbank_header["tsamp"])+',0,0\n')
                 riptide_output_handle.close()
 
                 #Move the riptide csv candidate file to its final location
@@ -252,7 +252,7 @@ async def riptide_pipeline(data, status_callback):
             except Exception as error:
                 raise error
             finally:
-                shutil.rmtree(processing_dir) #delete dedispersed files and riptide files that are not tarred
+                shutil.rmtree(processing_dir) #delete dedispersed files and unused riptide files
     return output_dps
 
 

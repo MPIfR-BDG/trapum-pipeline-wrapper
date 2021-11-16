@@ -330,7 +330,8 @@ async def peasoup_pipeline(data, status_callback):
                     search_file = os.path.join(
                         processing_dir, f"temp_merge_p_id_{processing_id}_{k+1:02d}.fil")
                     log.info(f"Searching file: {search_file}")
-                    dm_list_file = f"dm_list_{dm_range.low_dm:03f}_{dm_range.high_dm:03f}.ascii"
+                    dm_list_file = os.path.join(processing_dir,
+                        f"dm_list_{dm_range.low_dm:03f}_{dm_range.high_dm:03f}.ascii")
                     dmfile_from_dmrange(dm_range, dm_list_file)
 
                     curr_fft_size = fft_size // dm_range.tscrunch

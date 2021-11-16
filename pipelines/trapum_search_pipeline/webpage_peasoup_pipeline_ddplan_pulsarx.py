@@ -242,6 +242,7 @@ async def peasoup_pipeline(data, status_callback):
     processing_args = data["processing_args"]
     output_dir = data["base_output_dir"]
     processing_id = data["processing_id"]
+    debug_mode = data.get("debug", False)
 
     log.info(f"Creating output directory: {output_dir}")
     os.makedirs(output_dir, exist_ok=True)
@@ -357,8 +358,9 @@ async def peasoup_pipeline(data, status_callback):
                     # We do not keep the candidates.peasoup files as they can be massive
                     peasoup_candidate_file = os.path.join(
                         peasoup_output_dir, "candidates.peasoup")
-                    os.remove(peasoup_candidate_file)
-                    os.remove(dm_list_file)
+                    if not debug_mode:
+                        os.remove(peasoup_candidate_file)
+                        os.remove(dm_list_file)
                     meta_info = dict(
                         fftsize=curr_fft_size,
                         dmstart=dm_range.low_dm,
@@ -383,9 +385,11 @@ async def peasoup_pipeline(data, status_callback):
             except Exception as error:
                 raise error
             finally:
-                shutil.rmtree(processing_dir)
+                if not debug_mode:
+                    shutil.rmtree(processing_dir)
     log.removeHandler(fh)
-    os.remove(logfile)
+    if not debug_mode:
+        os.remove(logfile)
     return output_dps
 
 

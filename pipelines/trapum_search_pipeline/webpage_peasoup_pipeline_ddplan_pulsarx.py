@@ -339,7 +339,7 @@ async def peasoup_pipeline(data, status_callback):
                     status_callback(
                         f"Peasoup (DM: {dm_range.low_dm} - {dm_range.high_dm})")
 
-                    default_gulpsize = (2048.0 / (filterbank_headers[0]['nchans'] / fscrunch)) * 1e6
+                    default_gulpsize = int((2048.0 / (filterbank_headers[0]['nchans'] / fscrunch)) * 1e6)
 
                     await peasoup(
                         search_file, dm_list_file,

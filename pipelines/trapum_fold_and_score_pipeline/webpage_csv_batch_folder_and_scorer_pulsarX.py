@@ -252,11 +252,17 @@ def fold_and_score_pipeline(data, status_callback):
             num_cands_total = single_beam_cands_fold_limited.shape[0]
             nperbatch = processing_args.get('batch_size', 100)
             for batch_number, batch_start in enumerate(range(0, num_cands_total, nperbatch)):
+
                 status_callback("Folding batch {} of {}".format(
                     batch_number, int(num_cands_total/nperbatch + 0.5)))
 
                 batch_stop = min(batch_start+nperbatch, num_cands_total)
                 single_beam_cands_fold_limited = single_beam_cands[batch_start:batch_stop]
+
+                candsfile = f"{beam_name}_{utc_start}_{batch_start}_{batch_stop}_cands.candfile"
+                if glob.glob(os.path.join(tmp_dir, "*", candsfile)):
+                    log.warning("Candsfile for current batch already exists, skipping batch")
+                    continue
 
                 # Read parameters and fold
                 log.info("Reading all necessary candidate parameters")
@@ -510,3 +516,8 @@ if __name__ == "__main__":
     processor = mongo_wrapper.mongo_consumer_from_opts(opts)
     pipeline_wrapper = TrapumPipelineWrapper(opts, fold_and_score_pipeline)
     processor.process(pipeline_wrapper.on_receive)
+
+
+
+
+

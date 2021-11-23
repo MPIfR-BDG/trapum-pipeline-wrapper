@@ -259,7 +259,7 @@ def fold_and_score_pipeline(data, status_callback):
                 batch_stop = min(batch_start+nperbatch, num_cands_total)
                 single_beam_cands_fold_limited = single_beam_cands[batch_start:batch_stop]
 
-                candsfile = f"*_{beam_name}_{batch_start:05d}_{batch_stop-1:05d}.cands"
+                candsfile = f"*_*fbf*_{batch_start:05d}_{batch_stop-1:05d}.cands"
                 log.info("Checking for file: {}".format(os.path.join(tmp_dir, candsfile)))
                 if glob.glob(os.path.join(tmp_dir, candsfile)):
                     log.warning("Candsfile for current batch already exists, skipping batch")

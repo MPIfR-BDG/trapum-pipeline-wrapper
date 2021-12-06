@@ -68,7 +68,7 @@ async def transientx_replot(input_fils, input_txdps, output_dir,
 
     txtar.extractall(output_dir, members=[candfile])
 
-    cmd = f"replot_fil -v -t {num_threads} --zapthre {zapping_threshold} --td {tscrunch} --fd {fscrunch} --zdot --kadane 4 4 7 --clip 4 4 7 --dmcutoff {dm_cutoff} --widthcutoff {width_cutoff} --snrcutoff {snr_cutoff} --snrloss {snrloss} --zap {zap_flags} --candfile {candfile.name} --clean -f {' '.join(input_fils)}"
+    cmd = f"replot_fil -v -t {num_threads} --zapthre {zapping_threshold} --td {tscrunch} --fd {fscrunch} --zdot --kadane 4 4 7 --dmcutoff {dm_cutoff} --widthcutoff {width_cutoff} --snrcutoff {snr_cutoff} --snrloss {snrloss} --zap {zap_flags} --candfile {candfile.name} --clean -f {' '.join(input_fils)}"
 
     # run transientx replot
     try:

@@ -111,7 +111,7 @@ async def filtool(input_fils, output_dir,
                   nbits=8,
                   outmean=128.,
                   outstd=6.,
-                  segment_length=1.0,
+                  segment_length=2.0,
                   zapping_threshold=4.):
     delete_files_if_exists(output_dir)
 
@@ -144,12 +144,12 @@ async def filtool(input_fils, output_dir,
 
 async def peasoup(input_fil, dm_list, channel_mask, birdie_list,
                   candidate_limit, ram_limit, nharmonics, snr_threshold,
-                  start_accel, end_accel, fft_length, out_dir):
+                  start_accel, end_accel, fft_length, out_dir, gulp_size):
     cmd = (f"peasoup -k {channel_mask} -z {birdie_list} "
            f"-i {input_fil} --ram_limit_gb {ram_limit} "
            f"--dm_file {dm_list} --limit {candidate_limit} "
            f"-n {nharmonics}  -m {snr_threshold} --acc_start {start_accel} "
-           f"--acc_end {end_accel} --fft_size {fft_length} -o {out_dir}")
+           f"--acc_end {end_accel} --fft_size {fft_length} -o {out_dir} --dedisp_gulp {gulp_size}")
     await shell_call(cmd)
 
 
@@ -242,9 +242,13 @@ async def peasoup_pipeline(data, status_callback):
     processing_args = data["processing_args"]
     output_dir = data["base_output_dir"]
     processing_id = data["processing_id"]
+    debug_mode = data.get("debug", False)
 
     log.info(f"Creating output directory: {output_dir}")
     os.makedirs(output_dir, exist_ok=True)
+    logfile = os.path.join(output_dir, "pipeline.log")
+    fh = logging.FileHandler(logfile)
+    log.addHandler(fh)
 
     output_dps = []
 
@@ -304,14 +308,14 @@ async def peasoup_pipeline(data, status_callback):
                 # Determine channel mask to use
                 log.info("Determining channel mask")
                 chan_mask_csv = processing_args["channel_mask"]
-                chan_mask_file = "channel_mask.ascii"
+                chan_mask_file = os.path.join(processing_dir, "channel_mask.ascii")
                 generate_chan_mask(
                     chan_mask_csv, filterbank_headers[0], chan_mask_file)
 
                 # Determine birdie list to use
                 log.info("Determining birdie list")
                 birdie_list_csv = processing_args["birdie_list"]
-                birdie_list_file = "birdie_list.ascii"
+                birdie_list_file = os.path.join(processing_dir, "birdie_list.ascii")
                 generate_birdie_list(birdie_list_csv, birdie_list_file)
 
                 # Set RAM limit
@@ -326,7 +330,8 @@ async def peasoup_pipeline(data, status_callback):
                     search_file = os.path.join(
                         processing_dir, f"temp_merge_p_id_{processing_id}_{k+1:02d}.fil")
                     log.info(f"Searching file: {search_file}")
-                    dm_list_file = "dm_list.ascii"
+                    dm_list_file = os.path.join(processing_dir,
+                        f"dm_list_{dm_range.low_dm:03f}_{dm_range.high_dm:03f}.ascii")
                     dmfile_from_dmrange(dm_range, dm_list_file)
 
                     curr_fft_size = fft_size // dm_range.tscrunch
@@ -335,6 +340,9 @@ async def peasoup_pipeline(data, status_callback):
                         f"dm_range_{dm_range.low_dm:03f}_{dm_range.high_dm:03f}")
                     status_callback(
                         f"Peasoup (DM: {dm_range.low_dm} - {dm_range.high_dm})")
+
+                    default_gulpsize = int((2048.0 / (filterbank_headers[0]['nchans'] / fscrunch)) * 1e6)
+
                     await peasoup(
                         search_file, dm_list_file,
                         chan_mask_file, birdie_list_file,
@@ -345,13 +353,15 @@ async def peasoup_pipeline(data, status_callback):
                         processing_args['start_accel'],
                         processing_args['end_accel'],
                         int(curr_fft_size),
-                        peasoup_output_dir)
+                        peasoup_output_dir,
+                        processing_args.get('gulp_size', default_gulpsize))
 
                     # We do not keep the candidates.peasoup files as they can be massive
                     peasoup_candidate_file = os.path.join(
                         peasoup_output_dir, "candidates.peasoup")
-                    os.remove(peasoup_candidate_file)
-                    os.remove(dm_list_file)
+                    if not debug_mode:
+                        os.remove(peasoup_candidate_file)
+                        os.remove(dm_list_file)
                     meta_info = dict(
                         fftsize=curr_fft_size,
                         dmstart=dm_range.low_dm,
@@ -376,7 +386,11 @@ async def peasoup_pipeline(data, status_callback):
             except Exception as error:
                 raise error
             finally:
-                shutil.rmtree(processing_dir)
+                if not debug_mode:
+                    shutil.rmtree(processing_dir)
+    log.removeHandler(fh)
+    if not debug_mode:
+        os.remove(logfile)
     return output_dps
 
 

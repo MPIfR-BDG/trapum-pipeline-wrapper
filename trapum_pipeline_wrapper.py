@@ -78,13 +78,14 @@ class TrapumPipelineWrapper(object):
             session.add(processing)
         try:
             data_products = self._pipeline_callable(data, status_callback)
-            self.on_success(data_products)
+            upload = data.get("upload_data_products", True)
+            self.on_success(data_products, upload=upload)
         except Exception as error:
             log.exception("Error from pipeline: {}".format(str(error)))
             self.on_fail()
             raise error
 
-    def on_success(self, data_products):
+    def on_success(self, data_products, upload=True):
         '''
          required from pipeline: Filetype, filename, beam id , pointing id, directory
 
@@ -95,29 +96,30 @@ class TrapumPipelineWrapper(object):
             now = datetime.datetime.utcnow()
             processing.end_time = now
 
-            for dp in data_products:
-                ft = session.query(FileType).filter(
-                    FileType.name.ilike(dp['type'])).first()
-                if ft is None:
-                    ft = FileType(name=dp['type'], description="unknown")
-                    session.add(ft)
-                    session.flush()
-                filehash = self._generate_filehash(os.path.join(dp['directory'],dp['filename']))
-                data_product = DataProduct(
-                    filename=dp['filename'],
-                    filepath=dp['directory'],
-                    upload_date=now,
-                    modification_date=now,
-                    file_type_id=ft.id,
-                    beam_id=dp["beam_id"],
-                    pointing_id=dp["pointing_id"],
-                    processing_id=processing.id,
-                    metainfo=dp["metainfo"],
-                    filehash=filehash,
-                    available=True,
-                    locked=True
-                    )
-                session.add(data_product)
+            if upload:
+                for dp in data_products:
+                    ft = session.query(FileType).filter(
+                        FileType.name.ilike(dp['type'])).first()
+                    if ft is None:
+                        ft = FileType(name=dp['type'], description="unknown")
+                        session.add(ft)
+                        session.flush()
+                    filehash = self._generate_filehash(os.path.join(dp['directory'],dp['filename']))
+                    data_product = DataProduct(
+                        filename=dp['filename'],
+                        filepath=dp['directory'],
+                        upload_date=now,
+                        modification_date=now,
+                        file_type_id=ft.id,
+                        beam_id=dp["beam_id"],
+                        pointing_id=dp["pointing_id"],
+                        processing_id=processing.id,
+                        metainfo=dp["metainfo"],
+                        filehash=filehash,
+                        available=True,
+                        locked=True
+                        )
+                    session.add(data_product)
             processing.process_status = "success"
             session.add(processing)
 

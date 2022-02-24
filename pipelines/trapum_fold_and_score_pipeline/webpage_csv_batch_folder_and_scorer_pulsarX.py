@@ -252,11 +252,18 @@ def fold_and_score_pipeline(data, status_callback):
             num_cands_total = single_beam_cands_fold_limited.shape[0]
             nperbatch = processing_args.get('batch_size', 100)
             for batch_number, batch_start in enumerate(range(0, num_cands_total, nperbatch)):
+
                 status_callback("Folding batch {} of {}".format(
                     batch_number, int(num_cands_total/nperbatch + 0.5)))
 
                 batch_stop = min(batch_start+nperbatch, num_cands_total)
                 single_beam_cands_fold_limited = single_beam_cands[batch_start:batch_stop]
+
+                candsfile = f"*_*fbf*_{batch_start:05d}_{batch_stop-1:05d}.cands"
+                log.info("Checking for file: {}".format(os.path.join(tmp_dir, candsfile)))
+                if glob.glob(os.path.join(tmp_dir, candsfile)):
+                    log.warning("Candsfile for current batch already exists, skipping batch")
+                    continue
 
                 # Read parameters and fold
                 log.info("Reading all necessary candidate parameters")
@@ -348,7 +355,7 @@ def fold_and_score_pipeline(data, status_callback):
                         "Invalid beam name. Folding with default beam name")
                     beam_tag = ""
 
-                script = "psrfold_fil --plotx -v -t 12 --candfile {} -n {} {} {} --template {} --clfd 2.0 -L {} -f {} --rfi zdot {}".format(
+                script = "psrfold_fil --plotx -v -t 12 --candfile {} -n {} {} {} --template {} --clfd 8 -L {} -f {} --rfi zdot {}".format(
                     pred_file, nsubband, nbins_string, beam_tag, TEMPLATE, subint_length, input_filenames, zap_string)
                 log.info(script)
                 try:
@@ -510,3 +517,8 @@ if __name__ == "__main__":
     processor = mongo_wrapper.mongo_consumer_from_opts(opts)
     pipeline_wrapper = TrapumPipelineWrapper(opts, fold_and_score_pipeline)
     processor.process(pipeline_wrapper.on_receive)
+
+
+
+
+

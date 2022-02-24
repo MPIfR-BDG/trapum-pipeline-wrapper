@@ -60,10 +60,17 @@ def candidate_filter_pipeline(data, status_callback):
     for pointing in data["data"]["pointings"]:
         xml_list = []
         beam_id_list = []
+        errors = []
         for beam in pointing["beams"]:
             for dp in (beam["data_products"]):
                 xml_list.append(dp["filename"])
-                beam_id_list.append(beam["id"])
+                if os.path.isfile(dp["filename"]) and os.stat(dp["filename"]).st_size != 0:
+                    beam_id_list.append(beam["id"])
+                else:
+                    errors.append(dp["filename"])
+
+        if errors:
+            raise Exception("The following files are missing: {}".format(" ".join(errors)))
 
         # Make temporary folder to keep any temporary outputs
         

@@ -82,8 +82,8 @@ def candidate_filter_pipeline(data, status_callback):
         # Run the candidate filtering code
         try:
             subprocess.check_call(
-                "candidate_filter.py -i %s -o %s/%d -c /home/psr/software/candidate_filter/candidate_filter/default_config.json --rfi /home/psr/software/candidate_filter/candidate_filter/known_rfi.txt --p_tol %f --dm_tol %f" %
-                (xml_list_file, tmp_dir, processing_id, processing_args['p_tol'], processing_args['dm_tol']), shell=True)
+                "candidate_filter.py -i %s -o %s/%d --threshold %f -c /home/psr/software/candidate_filter/candidate_filter/default_config.json --rfi /home/psr/software/candidate_filter/candidate_filter/known_rfi.txt --p_tol %f --dm_tol %f" %
+                (xml_list_file, tmp_dir, processing_id, snr_cutoff, processing_args['p_tol'], processing_args['dm_tol']), shell=True)
             log.info("Filtered csvs have been written")
         except Exception as error:
             log.error(error)

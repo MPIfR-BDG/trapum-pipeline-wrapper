@@ -376,10 +376,10 @@ def fold_and_score_pipeline(data, status_callback):
                     if png_file not in png_files:
                         log.info("replot {}".format(png_file))
                         log.info(
-                            "dmffdot --plotx -f {}".format(os.path.basename(ar_file)))
+                            "dmffdot --plotx {} -f {}".format(beam_tag, os.path.basename(ar_file)))
                         try:
                             subprocess.check_call(
-                                "dmffdot --plotx -f {}".format(os.path.basename(ar_file)), shell=True, cwd=tmp_dir)
+                                "dmffdot --plotx {} -f {}".format(beam_tag, os.path.basename(ar_file)), shell=True, cwd=tmp_dir)
                         except Exception as error:
                             log.info("replot failed {}".format(png_file))
                             raise error

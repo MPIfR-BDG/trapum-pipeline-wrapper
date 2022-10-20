@@ -43,6 +43,8 @@ def slices(csv):
 
 
 async def shell_call(cmd, cwd="./"):
+    print(cmd)
+    return
     log.info(f"Shell call: {cmd}")
     proc = await asyncio.create_subprocess_shell(
         cmd,
@@ -120,22 +122,14 @@ async def filtool(input_fils, output_dir,
 
 async def peasoup(input_fil, dm_list, channel_mask, birdie_list,
                   candidate_limit, ram_limit, nharmonics, snr_threshold,
-                  start_accel, end_accel, fft_length, out_dir, gulp_size):
+                  start_accel, end_accel, fft_length, out_dir, gulp_size, start_sample, nsamples):
     cmd = (f"peasoup -k {channel_mask} -z {birdie_list} "
            f"-i {input_fil} --ram_limit_gb {ram_limit} "
            f"--dm_file {dm_list} --limit {candidate_limit} "
            f"-n {nharmonics}  -m {snr_threshold} --acc_start {start_accel} "
-           f"--acc_end {end_accel} --fft_size {fft_length} -o {out_dir} --dedisp_gulp {gulp_size}")
+           f"--acc_end {end_accel} --fft_size {fft_length} -o {out_dir} --dedisp_gulp {gulp_size}, --start_sample {start_sample} --nsamples {nsamples} ")
     await shell_call(cmd)
 
-
-def decide_fft_size(filterbank_headers):
-    nsamples = 0
-    for filterbank_header in filterbank_headers:
-        nsamples += filterbank_header['nsamples']
-
-
-    return round(math.log2(nsamples))
 
 
 def get_fil_dict(input_file):
@@ -208,32 +202,39 @@ def dmfile_from_dmrange(ddacc_leaf, outfile):
     return outfile
 
 
-DDACCLeaf = namedtuple("DDACCLeaf", ["low_dm", "high_dm", "dm_step", "tscrunch", "start_acc", "end_accs", "num_harm"]) # Each leaf is a processing chunk
+DDACCLeaf = namedtuple("DDACCLeaf", ["low_dm", "high_dm", "dm_step", "tscrunch", "ndm_trials",
+                                     "start_acc", "end_accs", "num_harm"]) # Each leaf is a processing chunk
 
- 
-class DDACCBranch(object): #Each branch is a segment
-    def  __init__(self,name):
+
+class DDACCBranch(object):  # Each branch is a segment
+    def __init__(self, fractional_segments):
         self._leaves = []
-        self._name = name
+        self._fractional_segments = fractional_segments
 
     def add_leaf(self, leaf):
         self._leaves.append(leaf)
 
     def __iter__(self):
-        return iter(sorted(self._leaves, key=lambda x: x['tscrunch']))
-
+        return iter(sorted(self._leaves))
 
     def __str__(self):
         out = []
         for r in self._leaves:
             out.append(str(r))
-        return "\n".join(out)     
+        return "Segments: " + self._fractional_segments + "leaves: " + "\n".join(out)
+
+    def segment_start(self):
+        return self._fractional_segments[0]
+
+    def segment_end(self):
+        return self._fractional_segments[1]
+
+    def size(self):
+        return len(self._leaves)
 
 
-    def segment(self):
-        return self._segment()    
-
-class DDACCTree(object): #Each tree is a particular processing, such as a PSR-WD or DNS processing. 
+# Each tree is a particular processing, such as a PSR-WD or DNS processing.
+class DDACCTree(object):
     def __init__(self, name):
         self._branches = []
         self._name = name
@@ -241,46 +242,62 @@ class DDACCTree(object): #Each tree is a particular processing, such as a PSR-WD
     def add_branch(self, branch):
         self._branches.append(branch)
 
-    
     def name(self):
         return self._name
-    
 
-class DDACCForest(object): # A collection of trees
+    def __iter__(self):
+        return iter(self._branches)
 
-        def __init__(self):
-            self._trees = []
+    def size(self):
+        return len(self._branches)
 
-        def add_tree(self, tree):
-            self._trees.append(tree)
-    
-
-        @classmethod
-        def from_string(cls, forest):
-            inst = cls()
-
-            parsed_forest = literal_eval(forest)
-
-            ddacc_forest = DDACCForest()
-
-            for name, tree in parsed_forest: 
-
-                ddacc_tree = DDACCTree(name)
-
-                for segment, branch in tree:
-
-                    ddacc_branch = DDACCBranch(segment)
-
-                    for leaf in branch:
-                        ddacc_leaf = DDACCLeaf(leaf)
-                        ddacc_branch.add_leaf(ddacc_leaf)
-
-                    ddacc_tree.add_branch(branch)
+    def __str__(self):
+        out = []
+        for r in self._branches:
+            out.append(str(r))
+        return "Name: " + self._name + "branches: " + "\n".join(out)
 
 
-                ddacc_forest.add_tree(tree)
-            
-            return ddacc_forest
+class DDACCForest(object):  # A collection of trees
+
+    def __init__(self):
+        self._trees = []
+
+    def add_tree(self, tree):
+        self._trees.append(tree)
+
+    def __iter__(self):
+        return iter(self._trees)
+
+    def size(self):
+        return len(self._trees)
+
+    @classmethod
+    def from_string(cls, forest):
+        inst = cls()
+
+        parsed_forest = literal_eval(forest)
+
+        ddacc_forest = DDACCForest()
+
+        for name in parsed_forest:
+            tree = parsed_forest[name]
+            ddacc_tree = DDACCTree(name)
+
+            for segment in tree:
+                branch = tree[segment]
+                ddacc_branch = DDACCBranch(segment)
+
+                for leaf in branch:
+                    ddacc_leaf = DDACCLeaf(*leaf)
+                    ddacc_branch.add_leaf(ddacc_leaf)
+
+                ddacc_tree.add_branch(ddacc_branch)
+
+            ddacc_forest.add_tree(ddacc_tree)
+
+        return ddacc_forest
+
 
 
 async def peasoup_pipeline(data, status_callback):
@@ -302,26 +319,21 @@ async def peasoup_pipeline(data, status_callback):
     output_dps = []
 
 
-    try:
-        if processing_args["ddaccplan"] and (processing_args["start_acc"] or processing_args["end_acc"]):
-            raise ValueError("Processing arguments contain both DDACCPlan and Acceelration ranges")
 
-        log.info("Parsing DDACCPlan")
-        ddacc_forest = DDACCForest.from_string(processing_args["ddaccplan"])
+    #make sure ddacc plan is unique. 
+    if processing_args["ddaccplan"] and (processing_args["start_acc"] or processing_args["end_acc"]):
+        raise ValueError("Processing arguments contain both DDACCPlan and Acceelration ranges")
 
-    except Exception as error:
-        log.exception("Unable to parse DDACCPlan")
-        raise error
-
-    if processing_args["temp_filesystem"] == "/beeond/":
-        log.info("Running on Beeond")
-        processing_dir = os.path.join(
-            BEEOND_TEMP_DIR, str(processing_id))
-    else:
-        log.info("Running on BeeGFS")
-        processing_dir = os.path.join(output_dir, "processing/")
-
+    #set processing directory
+    processing_dir = os.path.join(BEEOND_TEMP_DIR, str(processing_id)) if processing_args["temp_filesystem"] == "/beeond/" else os.path.join(output_dir, "processing/")
     os.makedirs(processing_dir, exist_ok=True)
+    log.info("Processing dir: {}".format(processing_dir))
+
+
+    #Parse DDACC forest
+    log.info("Parsing DDACCPlan")
+    ddacc_forest = DDACCForest.from_string(processing_args["ddaccplan"])
+
     fscrunch = processing_args.get("fscrunch", 1)
     rfi_flags = processing_args.get("rfi_flags", "zdot")
 
@@ -331,48 +343,57 @@ async def peasoup_pipeline(data, status_callback):
         for beam in pointing["beams"]:
 
             dps = sorted(select_data_products(
-                beam, lambda fname: fname.endswith(".fil")))     
+                beam, lambda fname: fname.endswith(".fil")))  
+
+            # First merge the filterbanks and output to processing directory
+            # this is done at whatever the native resolution of the data is
+            log.info("Executing file merge")
+            status_callback("Merging filterbanks and perform rfi mitigation")
+
+            await filtool(dps, processing_dir,
+                        f"temp_merge_p_id_{processing_id}",
+                        ddacc_tree,
+                        fscrunch,
+                        rfi_flags=rfi_flags)
+
+            filterbank_headers = [get_fil_dict(dp) for dp in dps]       
+
+            total_nsamples = 0
+            for  filterbank_header in filterbank_headers:
+                total_nsamples += filterbank_header['nsamples']
+
 
             for ddacc_tree in ddacc_forest:
 
                 for ddacc_branch in ddacc_tree: 
 
                     try:
+                        branch_start_fraction  = ddacc_branch.segment_start()
+                        branch_end_fraction = ddacc_branch.segment_end()
+                        
+                        # do some sanity checks
+                        if  branch_start_fraction < 0 or branch_start_fraction > 1 \
+                            or branch_end_fraction < 0 or branch_end_fraction > 1  \
+                            or branch_end_fraction > branch_start_fraction:
+                                raise ValueError("Invalid fractions of segments: ({}, {})".format(branch_start_fraction , branch_end_fraction))
 
-                        # First merge the filterbanks and output to processing directory
-                        # this is done at whatever the native resolution of the data is
-                        log.info("Executing file merge")
-                        status_callback(
-                            "Merging filterbanks and perform rfi mitigation")
+                        branch_start_sample = round(branch_start_fraction * total_nsamples)
+                        nsamples = (branch_end_fraction - branch_start_fraction) * total_nsamples
 
-                        await filtool(dps, processing_dir,
-                                    f"temp_merge_p_id_{processing_id}",
-                                    ddacc_tree,
-                                    fscrunch,
-                                    rfi_flags=rfi_flags)
-
-                        filterbank_headers = [get_fil_dict(dp) for dp in dps]
-
-                        # Determine fft_size for Peasoup call
-                        if processing_args['fft_length'] == 0:
-                            fft_size = decide_fft_size(filterbank_headers)
-                        else:
-                            fft_size = processing_args['fft_length']
+                    
 
                         # Hard coded for max limit - tmp assuming 4hr, 76 us
                         # This is related to the available RAM of GTX 1080Ti GPUs
                         # and the limitations of the 32-bit implementation
-                        # of the CUFFT library
-                        if fft_size > MAX_FFT_LEN:
-                            fft_size = MAX_FFT_LEN
+                        # of the CUFFT library                        
+                        fft_size = math.log2(nsamples) if fft_size <  MAX_FFT_LEN else MAX_FFT_LEN
                         log.info(f"Chose base FFT length of {fft_size}")
 
                         # Determine channel mask to use
                         log.info("Determining channel mask")
                         chan_mask_csv = processing_args["channel_mask"]
                         chan_mask_file = os.path.join(processing_dir, "channel_mask.ascii")
-                        generate_chan_mask(
-                            chan_mask_csv, filterbank_headers[0], chan_mask_file)
+                        generate_chan_mask(chan_mask_csv, filterbank_headers[0], chan_mask_file)
 
                         # Determine birdie list to use
                         log.info("Determining birdie list")
@@ -384,15 +405,14 @@ async def peasoup_pipeline(data, status_callback):
                         ram_limit = processing_args['ram_limit']
 
                         log.info("Instantiating downsampling manager")
-
-                        log.info("Starting loop over DDPlan")
+                        log.info("Starting loop over DDACC Leaves")
 
 
                         for k, ddacc_leaf in enumerate(ddacc_branch):
 
                             log.info(f"Processing DM/ACC range: {ddacc_leaf}")
 
-                            search_file = os.path.join(ddacc_leaf, processing_dir, f"temp_merge_p_id_{processing_id}_{ddacc_tree.name}_{ddacc_branch.name+1:02d}_{k+1:02d}.fil")
+                            search_file = os.path.join(ddacc_leaf, processing_dir, f"temp_merge_p_id_{processing_id}_{k+1:02d}.fil")
                             log.info(f"Searching file: {search_file}")
 
                             dm_list_file = os.path.join(processing_dir, f"dm_list_{ddacc_leaf.low_dm:03f}_{ddacc_leaf.high_dm:03f}_{ddacc_tree.name}_{ddacc_branch.name+1:02d}_{k+1:02d}.ascii")
@@ -405,6 +425,8 @@ async def peasoup_pipeline(data, status_callback):
 
                             default_gulpsize = int((2048.0 / (filterbank_headers[0]['nchans'] / fscrunch)) * 1e6)
 
+
+
                             await peasoup(
                                 search_file, dm_list_file,
                                 chan_mask_file, birdie_list_file,
@@ -416,7 +438,10 @@ async def peasoup_pipeline(data, status_callback):
                                 ddacc_leaf.end_acc,
                                 int(curr_fft_size),
                                 peasoup_output_dir,
-                                processing_args.get('gulp_size', default_gulpsize))
+                                processing_args.get('gulp_size', 
+                                default_gulpsize,
+                                branch_start_sample, 
+                                nsamples))
 
                             # We do not keep the candidates.peasoup files as they can be massive
                             peasoup_candidate_file = os.path.join(

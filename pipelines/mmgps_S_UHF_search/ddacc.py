@@ -215,7 +215,7 @@ class DDACCBranch(object):  # Each branch is a segment
         self._leaves.append(leaf)
 
     def __iter__(self):
-        return iter(sorted(self._leaves))
+        return iter(sorted(self._leaves), key = lambda x : int(x.tscrunch)) # so that it follows the order of DDPlan and hence the order of filtool output
 
     def __str__(self):
         out = []
@@ -415,7 +415,7 @@ async def peasoup_pipeline(data, status_callback):
                             search_file = os.path.join(ddacc_leaf, processing_dir, f"temp_merge_p_id_{processing_id}_{k+1:02d}.fil")
                             log.info(f"Searching file: {search_file}")
 
-                            dm_list_file = os.path.join(processing_dir, f"dm_list_{ddacc_leaf.low_dm:03f}_{ddacc_leaf.high_dm:03f}_{ddacc_tree.name}_{ddacc_branch.name+1:02d}_{k+1:02d}.ascii")
+                            dm_list_file = os.path.join(processing_dir, f"dm_list_{ddacc_leaf.low_dm:03f}_{ddacc_leaf.high_dm:03f}_{k+1:02d}.ascii")
                             dmfile_from_dmrange(ddacc_leaf, dm_list_file)
 
                             curr_fft_size = fft_size // ddacc_leaf.tscrunch

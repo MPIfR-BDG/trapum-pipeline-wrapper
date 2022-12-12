@@ -115,7 +115,7 @@ async def transientx(input_fils, output_dir,
     drop_flag = ""
     if drop_cands_with_maxwidth:
         drop_flag = "--drop"
-    cmd = f"transientx_fil -v -o {rootname} -t {num_threads} --zapthre {zapping_threshold} --fd {fscrunch} --overlap {overlap} --ddplan {ddplan_fname} --thre {snr_threshold} --maxw {max_search_width} --snrloss {snrloss} -l {segment_length} -r {dbscan_radius} -k {dbscan_k} --minpts {minimum_points_limit} --baseline {baseline_pre} {baseline_post} {drop_flag} {beam_tag} -z {rfi_flags} -f {' '.join(input_fils)}"
+    cmd = f"transientx_fil -v -o {rootname} -t {num_threads} --zapthre {zapping_threshold} --fd {fscrunch} --overlap {overlap} --ddplan {ddplan_fname} --thre {snr_threshold} --maxw {max_search_width} --snrloss {snrloss} -l {segment_length} -r {dbscan_radius} -k {dbscan_k} --minpts {minimum_points_limit} --baseline {baseline_pre} {baseline_post} {drop_flag} {beam_tag} --fillPatch rand -z {rfi_flags} -f {' '.join(input_fils)}"
 
     # run transientx
     try:

@@ -68,7 +68,11 @@ async def transientx_replot(input_fils, input_txdps, output_dir,
 
     txtar.extractall(output_dir, members=[candfile])
 
-    cmd = f"replot_fil -v -t {num_threads} --zapthre {zapping_threshold} --td {tscrunch} --fd {fscrunch} --zdot --kadane 4 4 7 --dmcutoff {dm_cutoff} --widthcutoff {width_cutoff} --snrcutoff {snr_cutoff} --snrloss {snrloss} --zap {zap_flags} --candfile {candfile.name} --clean -f {' '.join(input_fils)}"
+    zap_str = ""
+    if zap_flags is not None:
+        zap_str = "--zap " + zap_flags
+
+    cmd = f"replot_fil -v -t {num_threads} --zapthre {zapping_threshold} --td {tscrunch} --fd {fscrunch} --zdot --kadane 4 4 7 --dmcutoff {dm_cutoff} --widthcutoff {width_cutoff} --snrcutoff {snr_cutoff} --snrloss {snrloss} {zap_str} --candfile {candfile.name} --clean -f {' '.join(input_fils)}"
 
     # run transientx replot
     try:
@@ -129,6 +133,8 @@ async def transientx_replot_pipeline(data, status_callback):
                 dm_cutoff = processing_args.get("dm_cutoff", 1)
                 width_cutoff = processing_args.get("width_cutoff", 0.1)
                 snr_cutoff = processing_args.get("snr_cutoff", 7)
+
+                zap_flags = None
 
                 cmask = processing_args.get("channel_mask", None)
                 if cmask is not None:

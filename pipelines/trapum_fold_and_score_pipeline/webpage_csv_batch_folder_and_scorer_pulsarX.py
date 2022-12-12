@@ -52,6 +52,7 @@ def period_modified(p0, pdot, no_of_samples, tsamp, fft_size):
 def remove_dir(dir_name):
     shutil.rmtree(dir_name)
 
+
 def untar_file(tar_file, tmp_dir):
     try:
         subprocess.check_call(
@@ -128,6 +129,11 @@ def convert_to_std_format(ra, dec):
     dec_coord = "{}:{}:{:.2f}".format(dec_deg, abs(dec_min), abs(dec_sec))
 
     return ra_coord, dec_coord
+
+
+def get_fbottom_ftop(filterbank):
+    filterbank_stats = get_fil_dict(filterbank)
+    return filterbank_stats['fbottom'], filterbank_stats['ftop'], filterbank_stats['nchans']
 
 
 def get_obs_length(filterbanks):
@@ -230,6 +236,10 @@ def fold_and_score_pipeline(data, status_callback):
             period_cut = parse_cuts(period_cuts, obs_length)
             log.info("Selecting periods above {} seconds".format(period_cut))
             snr_cut_cands = snr_cut_cands[snr_cut_cands['period'] > period_cut]
+            fbottom, ftop, nchans = get_fbottom_ftop(input_fil_list[0])
+            log.info("Selecting periods below channel smearing")
+            snr_cut_cands = snr_cut_cands[snr_cut_cands['period'] > np.abs(
+                4.148741601e3*snr_cut_cands['dm']*(1./(fbottom*fbottom)-1./(ftop*ftop))/nchans)]
             single_beam_cands = snr_cut_cands[snr_cut_cands['beam_id'] == beam_ID]
             single_beam_cands.sort_values('snr', inplace=True, ascending=False)
             log.info("Found {} candidates to fild".format(
@@ -260,9 +270,11 @@ def fold_and_score_pipeline(data, status_callback):
                 single_beam_cands_fold_limited = single_beam_cands[batch_start:batch_stop]
 
                 candsfile = f"*_*fbf*_{batch_start:05d}_{batch_stop-1:05d}.cands"
-                log.info("Checking for file: {}".format(os.path.join(tmp_dir, candsfile)))
+                log.info("Checking for file: {}".format(
+                    os.path.join(tmp_dir, candsfile)))
                 if glob.glob(os.path.join(tmp_dir, candsfile)):
-                    log.warning("Candsfile for current batch already exists, skipping batch")
+                    log.warning(
+                        "Candsfile for current batch already exists, skipping batch")
                     continue
 
                 # Read parameters and fold
@@ -355,7 +367,7 @@ def fold_and_score_pipeline(data, status_callback):
                         "Invalid beam name. Folding with default beam name")
                     beam_tag = ""
 
-                script = "psrfold_fil --plotx -v -t 12 --candfile {} -n {} {} {} --template {} --clfd 8 -L {} -f {} --rfi zdot {}".format(
+                script = "psrfold_fil2 --dmboost 250 --plotx -v -t 12 --candfile {} -n {} {} {} --template {} --clfd 8 -L {} --fillPatch rand -f {} --rfi zdot {}".format(
                     pred_file, nsubband, nbins_string, beam_tag, TEMPLATE, subint_length, input_filenames, zap_string)
                 log.info(script)
                 try:
@@ -517,8 +529,3 @@ if __name__ == "__main__":
     processor = mongo_wrapper.mongo_consumer_from_opts(opts)
     pipeline_wrapper = TrapumPipelineWrapper(opts, fold_and_score_pipeline)
     processor.process(pipeline_wrapper.on_receive)
-
-
-
-
-

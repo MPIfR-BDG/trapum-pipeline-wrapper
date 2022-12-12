@@ -131,7 +131,7 @@ async def filtool(input_fils, output_dir,
                           "rfi_flags": ""})
         json.dump(plans, filplan_file)
 
-    cmd = f"filtool -v -t {num_threads} --zapthre {zapping_threshold} --fd {fscrunch} --filplan {filplan_fname} -l {segment_length} --baseline {0} {0} -z {rfi_flags} -o {rootname} -f {' '.join(input_fils)}"
+    cmd = f"filtool -v -t {num_threads} --zapthre {zapping_threshold} --fd {fscrunch} --filplan {filplan_fname} -l {segment_length} --baseline {0} {0} --fillPatch rand -z {rfi_flags} -o {rootname} -f {' '.join(input_fils)}"
 
     # run transientx
     try:

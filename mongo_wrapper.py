@@ -16,11 +16,12 @@ DEFAULT_RETRIES = 3
 
 
 class MongoConsumer(object):
-    def __init__(self, pipline_name, collection, filter_):
+    def __init__(self, pipline_name, collection, filter_, loop=True):
         self._pipline_name = pipline_name
         self._collection = collection
         self._filter = filter_
         self._current = None
+        self._loop = loop
         self._sleep_time = 20
         signal.signal(signal.SIGTERM, self._signal_handler)
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -40,7 +41,9 @@ class MongoConsumer(object):
 
     def _get_one(self):
         message = self._collection.find_one_and_update(
-            {"eligible": True, "pipeline_name": self._pipline_name},
+            {"eligible": True,
+             "pipeline_name": self._pipline_name,
+             **self._filter},
             {"$set": {
                 "eligible": False,
                 "acquired_at": datetime.datetime.utcnow(),
@@ -111,6 +114,8 @@ class MongoConsumer(object):
                     self._mark_success()
                 finally:
                     self._current = None
+            if not self._loop:
+                break
 
 
 def add_mongo_consumer_opts(parser):
@@ -118,6 +123,9 @@ def add_mongo_consumer_opts(parser):
                       help='MongoDB URL')
     parser.add_option('', '--pipeline', dest='pipeline', type=str,
                       help='Pipeline name')
+    parser.add_option('', '--job-id', dest='job_id', type=str,
+                      help='The ID of a specific job to process',
+                      default=None)
     parser.add_option('', '--log_level', dest='log_level', type=str,
                       help='Logging level for mongo consumer logger',
                       default="INFO")
@@ -128,7 +136,11 @@ def mongo_consumer_from_opts(opts):
     logging.getLogger("pymongo").setLevel("WARN")
     client = pymongo.MongoClient(opts.mongo)
     collection = client.trapum.processing_queue
-    process = MongoConsumer(opts.pipeline, collection, {})
+    if opts.job_id is not None:
+        filter_ = {"_id": opts.job_id}
+        process = MongoConsumer(opts.pipeline, collection, filter_, loop=False)
+    else:
+        process = MongoConsumer(opts.pipeline, collection, {}, loop=True)
     return process
 
 

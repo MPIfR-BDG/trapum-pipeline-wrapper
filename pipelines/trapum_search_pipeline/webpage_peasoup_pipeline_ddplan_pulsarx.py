@@ -239,6 +239,8 @@ async def peasoup_pipeline(data, status_callback):
     # in the event of segmentation faults
     await shell_call("ulimit -c  0")
 
+    using_condor = processing_args["temp_filesystem"] == "/condor/"
+
     processing_args = data["processing_args"]
     output_dir = data["base_output_dir"]
     processing_id = data["processing_id"]
@@ -269,8 +271,11 @@ async def peasoup_pipeline(data, status_callback):
                 log.info("Running on Beeond")
                 processing_dir = os.path.join(
                     BEEOND_TEMP_DIR, str(processing_id))
-            else:
+            elif processing_args["temp_filesystem"] == "/beegfs/":
                 log.info("Running on BeeGFS")
+                processing_dir = os.path.join(output_dir, "processing/")
+            elif using_condor:
+                log.info("Running on condor scratch")
                 processing_dir = os.path.join(output_dir, "processing/")
             os.makedirs(processing_dir, exist_ok=True)
             try:
@@ -370,9 +375,12 @@ async def peasoup_pipeline(data, status_callback):
                     )
                     new_xml_file_name = "overview_dm_{:03f}_{:03f}.xml".format(
                         dm_range.low_dm, dm_range.high_dm)
-                    shutil.move(
-                        os.path.join(peasoup_output_dir, "overview.xml"),
-                        os.path.join(output_dir, new_xml_file_name))
+                    if processing_args["temp_filesystem"] == "/condor/":
+                        log.info("Running on condor so no copying of outputs")
+                    else:
+                        shutil.move(
+                            os.path.join(peasoup_output_dir, "overview.xml"),
+                            os.path.join(output_dir, new_xml_file_name))
                     log.info("Transferred XML file to final location")
                     dp = dict(
                         type="peasoup_xml",

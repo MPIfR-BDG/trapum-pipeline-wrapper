@@ -275,7 +275,7 @@ async def peasoup_pipeline(data, status_callback):
                 processing_dir = os.path.join(output_dir, "processing/")
             elif using_condor:
                 log.info("Running on condor scratch")
-                processing_dir = os.path.join(output_dir, "processing/")
+                processing_dir = os.path.join("./")
             os.makedirs(processing_dir, exist_ok=True)
             try:
 

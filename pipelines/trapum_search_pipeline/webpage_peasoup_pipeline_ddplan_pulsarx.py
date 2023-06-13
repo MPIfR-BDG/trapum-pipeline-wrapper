@@ -220,9 +220,9 @@ def select_data_products(beam, filter_func=None):
     for dp in (beam["data_products"]):
         if filter_func:
             if filter_func(dp["filename"]):
-                dp_list.append(dp["filename"])
+                dp_list.append(os.path.abspath(dp["filename"]))
         else:
-            dp_list.append(dp["filename"])
+            dp_list.append(os.path.abspath(dp["filename"]))
     return dp_list
 
 

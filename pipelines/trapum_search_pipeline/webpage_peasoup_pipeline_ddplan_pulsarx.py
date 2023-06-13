@@ -239,13 +239,12 @@ async def peasoup_pipeline(data, status_callback):
     # in the event of segmentation faults
     await shell_call("ulimit -c  0")
 
-    using_condor = processing_args["temp_filesystem"] == "/condor/"
 
     processing_args = data["processing_args"]
     output_dir = data["base_output_dir"]
     processing_id = data["processing_id"]
     debug_mode = data.get("debug", False)
-
+    using_condor = processing_args["temp_filesystem"] == "/condor/"
     log.info(f"Creating output directory: {output_dir}")
     os.makedirs(output_dir, exist_ok=True)
     logfile = os.path.join(output_dir, "pipeline.log")

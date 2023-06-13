@@ -123,7 +123,7 @@ def add_mongo_consumer_opts(parser):
                       help='MongoDB URL')
     parser.add_option('', '--pipeline', dest='pipeline', type=str,
                       help='Pipeline name')
-    parser.add_option('', '--processing-id', dest='job_id', type=str,
+    parser.add_option('', '--processing-id', dest='processing_id', type=str,
                       help='The processing ID of a specific job to process',
                       default=None)
     parser.add_option('', '--log_level', dest='log_level', type=str,
@@ -136,8 +136,8 @@ def mongo_consumer_from_opts(opts):
     logging.getLogger("pymongo").setLevel("WARN")
     client = pymongo.MongoClient(opts.mongo)
     collection = client.trapum.processing_queue
-    if opts.job_id is not None:
-        filter_ = {"_id": opts.job_id}
+    if opts.processing_id is not None:
+        filter_ = {"processing_id": opts.processing_id}
         process = MongoConsumer(opts.pipeline, collection, filter_, loop=False)
     else:
         process = MongoConsumer(opts.pipeline, collection, {}, loop=True)

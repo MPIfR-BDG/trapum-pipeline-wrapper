@@ -123,8 +123,8 @@ def add_mongo_consumer_opts(parser):
                       help='MongoDB URL')
     parser.add_option('', '--pipeline', dest='pipeline', type=str,
                       help='Pipeline name')
-    parser.add_option('', '--job-id', dest='job_id', type=str,
-                      help='The ID of a specific job to process',
+    parser.add_option('', '--processing-id', dest='job_id', type=str,
+                      help='The processing ID of a specific job to process',
                       default=None)
     parser.add_option('', '--log_level', dest='log_level', type=str,
                       help='Logging level for mongo consumer logger',

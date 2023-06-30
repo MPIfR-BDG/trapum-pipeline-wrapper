@@ -26,6 +26,7 @@ log.setLevel('INFO')
 
 TEMPLATE = "/home/psr/software/PulsarX/include/template/meerkat_fold.template"
 
+
 def make_tarfile(output_path, input_path, name):
     with tarfile.open(output_path + '/' + name, "w:gz") as tar:
         tar.add(input_path, arcname=os.path.basename(input_path))
@@ -42,7 +43,8 @@ def period_modified(p0, pdot, no_of_samples, tsamp, fft_size):
     """
     if (fft_size == 0.0):
         return p0 - pdot * \
-            float(1 << (no_of_samples.bit_length() - 1) - no_of_samples) * tsamp / 2
+            float(1 << (no_of_samples.bit_length() - 1) -
+                  no_of_samples) * tsamp / 2
     else:
         return p0 - pdot * float(fft_size - no_of_samples) * tsamp / 2
 
@@ -144,7 +146,7 @@ def parse_cuts(cuts, tobs):
         return float(cuts)
     else:
         for cut in cuts.split(","):
-            low,high,value = list(map(float, cut.split(":")))
+            low, high, value = list(map(float, cut.split(":")))
             if tobs >= low and tobs < high:
                 return value
         else:
@@ -218,7 +220,8 @@ def fold_and_score_pipeline(data):
                 (beam_ID, processing_args['snr_cutoff']))
             snr_cut_cands = df[df['snr'] > float(
                 processing_args['snr_cutoff'])]
-            period_cuts = processing_args.get('period_cutoffs', "0:inf:0.0000000001")
+            period_cuts = processing_args.get(
+                'period_cutoffs', "0:inf:0.0000000001")
             obs_length = get_obs_length(input_fil_list)
             log.info("Parsing period cuts: {}".format(period_cuts))
             period_cut = parse_cuts(period_cuts, obs_length)
@@ -226,7 +229,8 @@ def fold_and_score_pipeline(data):
             snr_cut_cands = snr_cut_cands[snr_cut_cands['period'] > period_cut]
             single_beam_cands = snr_cut_cands[snr_cut_cands['beam_id'] == beam_ID]
             single_beam_cands.sort_values('snr', inplace=True, ascending=False)
-            log.info("Found {} candidates to fild".format(len(single_beam_cands)))
+            log.info("Found {} candidates to fild".format(
+                len(single_beam_cands)))
             print(single_beam_cands)
 
             # If no candidates found in this beam, skip to next message
@@ -308,22 +312,29 @@ def fold_and_score_pipeline(data):
                         raise Exception("Unable to parse channel mask: {}".format(
                             str(error)))
 
-            fast_nbins = processing_args.get("fast_nbins", 64)    # Nbins for candidates < 100 ms
-            slow_nbins = processing_args.get("slow_nbins", 128)   # Nbins for candidates > 100 ms
-            nbins_string = "-b {} --nbinplan 0.1 {}".format(fast_nbins, slow_nbins)
+            # Nbins for candidates < 100 ms
+            fast_nbins = processing_args.get("fast_nbins", 64)
+            # Nbins for candidates > 100 ms
+            slow_nbins = processing_args.get("slow_nbins", 128)
+            nbins_string = "-b {} --nbinplan 0.1 {}".format(
+                fast_nbins, slow_nbins)
             subint_length = processing_args.get("subint_length", 10.0)
             nsubband = processing_args.get("nsubband", 64)
+            fscrunch = processing_args.get("fscrunch", 1)
+            tscrunch = processing_args.get("tscrunch", 1)
+
 
             if 'ifbf' in beam_name:
                 beam_tag = "--incoherent"
             elif 'cfbf' in beam_name:
                 beam_tag = "-i {}".format(int(beam_name.strip("cfbf")))
             else:
-                log.warning("Invalid beam name. Folding with default beam name")
+                log.warning(
+                    "Invalid beam name. Folding with default beam name")
                 beam_tag = ""
 
-            script = "psrfold_fil -v -t 12 --candfile {} -n {} {} {} --template {} --clfd 2.0 -L {} -f {} --rfi zdot {}".format(
-                        pred_file, nsubband, nbins_string, beam_tag, TEMPLATE, subint_length, input_filenames, zap_string)
+            script = "psrfold_fil -v -t 12 --candfile {} -n {} {} {} --template {} --clfd 2.0 -L {} -f {} --rfi zdot {} --fd {} --td {}".format(
+                pred_file, nsubband, nbins_string, beam_tag, TEMPLATE, subint_length, input_filenames, zap_string, fscrunch, tscrunch)
             log.info(script)
             try:
                 subprocess.check_call(script, shell=True, cwd=tmp_dir)
@@ -413,7 +424,7 @@ def fold_and_score_pipeline(data):
             output_dps.append(dp)
 
     tend = time.time()
-    print ("Time taken is : %f s" % (tend - tstart))
+    print("Time taken is : %f s" % (tend - tstart))
     return output_dps
 
 
@@ -429,4 +440,3 @@ if __name__ == "__main__":
     processor.process(pipeline_wrapper.on_receive)
 
     get_params_from_csv_and_fold(opts)
-

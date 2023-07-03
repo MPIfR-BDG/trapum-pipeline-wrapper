@@ -357,6 +357,8 @@ def fold_and_score_pipeline(data, status_callback):
                     fast_nbins, slow_nbins)
                 subint_length = processing_args.get("subint_length", 10.0)
                 nsubband = processing_args.get("nsubband", 64)
+                fscrunch = processing_args.get("fscrunch", 1)
+                tscrunch = processing_args.get("tscrunch", 1)
 
                 if 'ifbf' in beam_name:
                     beam_tag = "--incoherent"
@@ -367,8 +369,8 @@ def fold_and_score_pipeline(data, status_callback):
                         "Invalid beam name. Folding with default beam name")
                     beam_tag = ""
 
-                script = "psrfold_fil2 --dmboost 250 --plotx -v -t 12 --candfile {} -n {} {} {} --template {} --clfd 8 -L {} --fillPatch rand -f {} --rfi zdot {}".format(
-                    pred_file, nsubband, nbins_string, beam_tag, TEMPLATE, subint_length, input_filenames, zap_string)
+                script = "psrfold_fil2 --dmboost 250 --plotx -v -t 12 --candfile {} -n {} {} {} --template {} --clfd 8 -L {} --fillPatch rand -f {} --rfi zdot {} --fd {} --td {}".format(
+                    pred_file, nsubband, nbins_string, beam_tag, TEMPLATE, subint_length, input_filenames, zap_string, fscrunch, tscrunch)
                 log.info(script)
                 try:
                     subprocess.check_call(script, shell=True, cwd=tmp_dir)

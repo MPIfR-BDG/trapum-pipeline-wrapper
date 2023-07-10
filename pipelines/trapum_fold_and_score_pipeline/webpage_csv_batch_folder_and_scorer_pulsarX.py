@@ -428,7 +428,7 @@ def fold_and_score_pipeline(data, status_callback):
             status_callback("Scoring candidates")
             log.info("Folding done for all candidates. Scoring all candidates...")
             subprocess.check_call(
-                "python2 webpage_score.py --in_path={}".format(tmp_dir),
+                "python2 /home/psr/software/trapum-pipeline-wrapper/pipelines/trapum_fold_and_score_pipeline/webpage_score.py --in_path={}".format(tmp_dir),
                 shell=True)
             log.info("Scoring done...")
 

@@ -16,7 +16,7 @@ logging.basicConfig(format=FORMAT)
 
 #AI_PATH = '/'.join(ubc_AI.__file__.split('/')[:-1])
 AI_PATH = '/beegfs/PROCESSING/TRAPUM/pics_trained_models'
-models = ["clfl2_trapum_Ter5.pkl", "clfl2_PALFA.pkl"]
+models = ["MeerKAT_L_SBAND_COMBINED_Best_Recall.pkl", "PALFA_MeerKAT_L_SBAND_Best_Fscore.pkl"]
 
 
 def make_tarfile(output_path,input_path,name):
@@ -26,7 +26,6 @@ def make_tarfile(output_path,input_path,name):
 
 def get_id_from_cand_file(filename):
     return(filename.split('_')[-1].strip(".ar"))
-
 
 
 def extract_and_score(opts):
@@ -57,7 +56,6 @@ def extract_and_score(opts):
             scores = ",".join(map(str,row[1:]))
             fout.write("{},{}\n".format(row[0], scores))
     log.info("Written to file in {}".format(path))
-
 
 
 

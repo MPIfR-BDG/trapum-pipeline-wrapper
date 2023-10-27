@@ -166,7 +166,7 @@ def subband_pipeline(data, status_callback):
             merged_file = "%s/%s_p_id_%d.fil" % (
                 output_dir, partial_name, processing_id)
             extra_digifil_args = processing_args.get("extra_digifil_args", "")
-            digifil_script = "digifil %s -b 8 -threads 15 {} -o %s" % (
+            digifil_script = "digifil %s -b 8 -threads 15 %s -o %s" % (
                 all_files, extra_digifil_args, merged_file)
             expected_merge_length = get_expected_merge_length(dp_list)
             log.info("Expected merge length: {} samples".format(

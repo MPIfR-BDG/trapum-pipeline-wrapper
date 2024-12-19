@@ -369,7 +369,7 @@ def fold_and_score_pipeline(data, status_callback):
                         "Invalid beam name. Folding with default beam name")
                     beam_tag = ""
 
-                script = "psrfold_fil2 --dmboost 250 --plotx -v -t 12 --candfile {} -n {} {} {} --template {} --clfd 8 -L {} --fillPatch rand -f {} --rfi zdot {} --fd {} --td {}".format(
+                script = "psrfold_fil --plotx -v -t 12 --candfile {} -n {} {} {} --template {} --clfd 8 -L {} --fillPatch rand -f {} --rfi zdot {} --fd {} --td {}".format(
                     pred_file, nsubband, nbins_string, beam_tag, TEMPLATE, subint_length, input_filenames, zap_string, fscrunch, tscrunch)
                 log.info(script)
                 try:
@@ -471,8 +471,8 @@ def fold_and_score_pipeline(data, status_callback):
                         ".png")) for ar in df2['arfile']]
             df1['ar_file'] = [output_dir + "/" + tar_name + "/" +
                               os.path.basename(ar) for ar in df2['arfile']]
-            df1['pics_TRAPUM_Ter5'] = df2['clfl2_trapum_Ter5.pkl']
-            df1['pics_PALFA'] = df2['clfl2_PALFA.pkl']
+            df1['pics_MeerKAT_L_SBAND_COMBINED_Best_Recall.pkl'] = df2['MeerKAT_L_SBAND_COMBINED_Best_Recall.pkl']
+            df1['pics_PALFA_MeerKAT_L_SBAND_Best_Fscore.pkl'] = df2['PALFA_MeerKAT_L_SBAND_Best_Fscore.pkl']
 
             with open(glob.glob("{}/*.cands".format(tmp_dir))[0], "r") as f:
                 comment_lines = []

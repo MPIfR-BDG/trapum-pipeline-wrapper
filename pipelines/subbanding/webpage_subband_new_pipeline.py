@@ -16,6 +16,7 @@ logging.basicConfig(format=FORMAT)
 log.setLevel(logging.INFO)
 
 SIZE_MARGIN = 200 #bytes for possible header differences
+LEN_MARGIN = 1 # differnce in number of samples
 
 def iqr_filter(merged_file, processing_args, output_dir):  # add tsamp,nchans to processing_args
     iqr_file = output_dir + '/' + \
@@ -119,7 +120,7 @@ def get_fil_dict(input_file):
     return filterbank_stats
 
 def get_expected_merge_length(filterbanks):
-    return sum([get_fil_dict(fname)['nsamples'] for fname in filterbanks])
+    return int(sum([get_fil_dict(fname)['nsamples'] for fname in filterbanks]))
 
 # process_manager = PikaProcess(...)
 # pipeline_wrapper = TrapumPipelineWrapper(..., null_pipeline)
@@ -184,7 +185,7 @@ def subband_pipeline(data, status_callback):
 
             # Get header of merged file
             filterbank_header = get_fil_dict(merged_file)
-            if filterbank_header['nsamples'] != expected_merge_length:
+            if abs(filterbank_header['nsamples'] - expected_merge_length) > LEN_MARGIN:
                 log.error("Merged file has unexpected length of {} samples, expected {} samples".format(
                     filterbank_header['nsamples'], expected_merge_length))
                 raise Exception("Incorrect merged file length, failure in digifil processing")
@@ -210,7 +211,7 @@ def subband_pipeline(data, status_callback):
                 iqred_file = iqr_filter(merged_file, processing_args, output_dir)
 
             iqred_header = get_fil_dict(iqred_file)
-            if iqred_header['nsamples'] != expected_merge_length:
+            if abs(iqred_header['nsamples'] - expected_merge_length) > LEN_MARGIN:
                 log.error("IQRM file has unexpected length of {} samples, expected {} samples".format(
                     iqred_header['nsamples'], expected_merge_length))
                 raise Exception("Incorrect merged file length, failure in IQRM processing")

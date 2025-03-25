@@ -16,7 +16,7 @@ logging.basicConfig(format=FORMAT)
 log.setLevel(logging.INFO)
 
 SIZE_MARGIN = 200 #bytes for possible header differences
-LEN_MARGIN = 1 # differnce in number of samples
+LEN_MARGIN = 20 # difference in number of samples
 
 def iqr_filter(merged_file, processing_args, output_dir):  # add tsamp,nchans to processing_args
     iqr_file = output_dir + '/' + \
@@ -160,7 +160,7 @@ def subband_pipeline(data, status_callback):
             expected_merged_size = data_nbytes + header_nbytes
 
             # Merge filterbanks
-            all_files = ' '.join(dp_list)
+            all_files = ' '.join(sorted(dp_list))
             partial_base = os.path.basename(dp_list[0])
             partial_name = partial_base.split(
                 '_')[0] + '_' + partial_base.split('_')[1]
